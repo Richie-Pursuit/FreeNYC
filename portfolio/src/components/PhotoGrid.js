@@ -1,24 +1,24 @@
 import PhotoCard from "./PhotoCard";
 
 const cinematicPattern = [
-  "min-h-[78vh] sm:min-h-[64vh] lg:col-span-2 lg:row-span-2",
-  "min-h-[52vh] sm:min-h-[42vh]",
-  "min-h-[52vh] sm:min-h-[42vh]",
-  "min-h-[60vh] sm:min-h-[44vh]",
-  "min-h-[76vh] sm:min-h-[56vh] lg:row-span-2",
-  "min-h-[58vh] sm:min-h-[44vh]",
-  "min-h-[50vh] sm:min-h-[40vh]",
-  "min-h-[58vh] sm:min-h-[44vh]",
-  "min-h-[50vh] sm:min-h-[40vh]",
+  "min-h-[64vh] sm:min-h-[64vh] lg:col-span-2 lg:row-span-2",
+  "min-h-[46vh] sm:min-h-[42vh]",
+  "min-h-[46vh] sm:min-h-[42vh]",
+  "min-h-[54vh] sm:min-h-[44vh]",
+  "min-h-[62vh] sm:min-h-[56vh] lg:row-span-2",
+  "min-h-[50vh] sm:min-h-[44vh]",
+  "min-h-[44vh] sm:min-h-[40vh]",
+  "min-h-[50vh] sm:min-h-[44vh]",
+  "min-h-[44vh] sm:min-h-[40vh]",
 ];
 
 const masonryPattern = [
-  "min-h-[58vh] sm:min-h-[42vh] lg:min-h-[46vh]",
-  "min-h-[68vh] sm:min-h-[50vh] lg:min-h-[56vh]",
-  "min-h-[50vh] sm:min-h-[36vh] lg:min-h-[42vh]",
-  "min-h-[62vh] sm:min-h-[46vh] lg:min-h-[50vh]",
-  "min-h-[54vh] sm:min-h-[38vh] lg:min-h-[44vh]",
-  "min-h-[72vh] sm:min-h-[54vh] lg:min-h-[58vh]",
+  "min-h-[52vh] sm:min-h-[42vh] lg:min-h-[46vh]",
+  "min-h-[58vh] sm:min-h-[50vh] lg:min-h-[56vh]",
+  "min-h-[44vh] sm:min-h-[36vh] lg:min-h-[42vh]",
+  "min-h-[56vh] sm:min-h-[46vh] lg:min-h-[50vh]",
+  "min-h-[48vh] sm:min-h-[38vh] lg:min-h-[44vh]",
+  "min-h-[60vh] sm:min-h-[54vh] lg:min-h-[58vh]",
 ];
 
 const patternByLayout = {

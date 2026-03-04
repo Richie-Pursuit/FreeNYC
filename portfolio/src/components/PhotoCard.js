@@ -33,7 +33,7 @@ export default function PhotoCard({
       <button
         type="button"
         onClick={onOpen}
-        className="group relative block h-full w-full"
+        className="group relative block h-full w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
         aria-label={`Open ${altText}`}
       >
         <Image
@@ -41,18 +41,24 @@ export default function PhotoCard({
           alt={altText}
           fill
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-          className="object-cover transition duration-700 group-hover:scale-[1.02]"
+          className="object-cover transition duration-700 group-hover:scale-[1.02] group-active:scale-[1.01]"
           priority={priority}
         />
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/72 via-black/24 to-transparent opacity-100 transition-opacity duration-500 sm:opacity-0 sm:group-hover:opacity-100" />
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-4 p-5 text-left text-white opacity-0 transition-all duration-500 group-hover:translate-y-0 group-hover:opacity-100 sm:p-6">
-          <p className="display-font text-2xl leading-none">{photo.title}</p>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-0 p-4 text-left text-white opacity-100 transition-all duration-500 sm:translate-y-4 sm:p-6 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100">
+          <p className="display-font max-w-[92%] text-xl leading-none break-words sm:text-2xl">
+            {photo.title}
+          </p>
           <p className="mt-2 text-xs tracking-[0.08em] text-white/80 uppercase">
             {photo.collection}
           </p>
-          <p className="mt-3 max-w-lg text-sm text-white/90">{photo.poem}</p>
+          {photo.poem ? (
+            <p className="mt-2 max-w-lg text-xs text-white/90 break-words sm:mt-3 sm:text-sm">
+              {photo.poem}
+            </p>
+          ) : null}
         </div>
       </button>
     </article>

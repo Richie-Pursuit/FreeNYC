@@ -26,7 +26,7 @@ export default async function LoginPage({ searchParams }) {
       <Navbar />
 
       <main className="mx-auto flex w-full max-w-3xl flex-col items-center px-4 py-24 text-center sm:px-8">
-        <h1 className="display-font text-6xl leading-none">Admin Login</h1>
+        <h1 className="display-font text-4xl leading-none sm:text-6xl">Admin Login</h1>
         <p className="mt-5 max-w-md text-sm text-muted">
           Sign in with Google to access the private dashboard and manage portfolio
           uploads.

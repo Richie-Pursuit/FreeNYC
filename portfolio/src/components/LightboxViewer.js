@@ -3,6 +3,29 @@
 import { useEffect } from "react";
 import Image from "next/image";
 
+function ArrowIcon({ direction = "left" }) {
+  const isLeft = direction === "left";
+
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-5 w-5 sm:h-6 sm:w-6"
+      aria-hidden="true"
+    >
+      {isLeft ? (
+        <path d="m15 18-6-6 6-6" />
+      ) : (
+        <path d="m9 18 6-6-6-6" />
+      )}
+    </svg>
+  );
+}
+
 function getPhotoAltText(photo) {
   if (typeof photo?.alt === "string" && photo.alt.trim()) {
     return photo.alt.trim();
@@ -61,13 +84,31 @@ export default function LightboxViewer({
       <button
         type="button"
         onClick={onClose}
-        className="absolute top-6 right-5 z-10 text-xs tracking-[0.18em] text-white/85 uppercase transition-colors hover:text-white"
+        className="absolute top-4 right-3 z-10 rounded-full border border-white/20 bg-black/40 px-3 py-2 text-[10px] tracking-[0.16em] text-white/85 uppercase transition-colors hover:text-white sm:top-6 sm:right-5 sm:text-xs"
       >
         Close (ESC)
       </button>
 
       <div className="flex h-full flex-col">
         <div className="relative min-h-0 flex-1">
+          <button
+            type="button"
+            onClick={onPrevious}
+            aria-label="Previous photo"
+            className="group absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/25 bg-black/35 p-2.5 text-white/85 transition-all hover:border-white/55 hover:bg-black/60 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/40 sm:left-5 sm:p-3"
+          >
+            <ArrowIcon direction="left" />
+          </button>
+
+          <button
+            type="button"
+            onClick={onNext}
+            aria-label="Next photo"
+            className="group absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/25 bg-black/35 p-2.5 text-white/85 transition-all hover:border-white/55 hover:bg-black/60 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/40 sm:right-5 sm:p-3"
+          >
+            <ArrowIcon direction="right" />
+          </button>
+
           <Image
             src={photo.imageUrl}
             alt={altText}
@@ -78,33 +119,26 @@ export default function LightboxViewer({
           />
         </div>
 
-        <footer className="flex flex-col gap-5 border-t border-white/20 px-5 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-8">
+        <footer className="flex flex-col gap-4 border-t border-white/20 px-4 py-4 sm:flex-row sm:items-end sm:justify-between sm:px-8 sm:py-5">
           <div>
-            <p className="display-font text-3xl leading-none">{photo.title}</p>
+            <p className="display-font text-2xl leading-none break-words sm:text-3xl">
+              {photo.title}
+            </p>
             <p className="mt-2 text-[11px] tracking-[0.16em] text-white/65 uppercase">
               {photo.collection}
             </p>
-            <p className="mt-3 max-w-2xl text-sm text-white/85">{photo.caption}</p>
+            <p className="mt-3 max-w-2xl text-xs leading-6 text-white/85 break-words sm:text-sm sm:leading-7">
+              {photo.caption}
+            </p>
             {photo.poem ? (
-              <p className="mt-2 max-w-2xl text-sm text-white/75 italic">{photo.poem}</p>
+              <p className="mt-2 max-w-2xl text-xs leading-6 text-white/75 break-words italic sm:text-sm sm:leading-7">
+                {photo.poem}
+              </p>
             ) : null}
           </div>
 
-          <div className="flex items-center gap-8 text-[11px] tracking-[0.18em] uppercase">
-            <button
-              type="button"
-              onClick={onPrevious}
-              className="text-white/70 transition-colors hover:text-white"
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              onClick={onNext}
-              className="text-white/70 transition-colors hover:text-white"
-            >
-              Next
-            </button>
+          <div className="text-[10px] tracking-[0.16em] text-white/70 uppercase sm:text-[11px] sm:tracking-[0.18em]">
+            Use ← and → keys
           </div>
         </footer>
       </div>

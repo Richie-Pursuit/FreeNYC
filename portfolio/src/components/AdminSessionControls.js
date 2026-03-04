@@ -9,14 +9,16 @@ export default function AdminSessionControls({ email = "" }) {
   };
 
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-4">
       {email ? (
-        <p className="text-[11px] tracking-[0.12em] text-muted uppercase">{email}</p>
+        <p className="max-w-full break-all text-[10px] tracking-[0.12em] text-muted uppercase sm:text-[11px]">
+          {email}
+        </p>
       ) : null}
       <button
         type="button"
         onClick={handleSignOut}
-        className="text-[11px] tracking-[0.16em] text-muted uppercase transition-colors hover:text-foreground"
+        className="text-[10px] tracking-[0.16em] text-muted uppercase transition-colors hover:text-foreground sm:text-[11px]"
       >
         Sign Out
       </button>

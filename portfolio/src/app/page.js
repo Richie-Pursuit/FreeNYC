@@ -27,7 +27,7 @@ export default async function HomePage() {
       </main>
 
       <footer className="border-t border-line px-4 py-7 sm:px-8 lg:px-12">
-        <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-3 text-[11px] tracking-[0.18em] text-muted uppercase sm:flex-row sm:items-center sm:justify-between">
+        <div className="mx-auto flex w-full max-w-[1800px] flex-col items-start gap-3 text-[11px] tracking-[0.16em] text-muted uppercase sm:flex-row sm:items-center sm:justify-between sm:tracking-[0.18em]">
           <a href="https://instagram.com" target="_blank" rel="noreferrer">
             Instagram
           </a>

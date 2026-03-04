@@ -19,7 +19,7 @@ export default async function AdminPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <div className="mx-auto flex w-full max-w-5xl justify-end px-4 pt-6 sm:px-8 lg:px-12">
+      <div className="mx-auto flex w-full max-w-5xl justify-end px-4 pt-4 sm:px-8 sm:pt-6 lg:px-12">
         <AdminSessionControls email={session.user.email} />
       </div>
       <AdminDashboard />

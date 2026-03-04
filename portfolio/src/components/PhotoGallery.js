@@ -64,7 +64,7 @@ export default function PhotoGallery({
   return (
     <>
       {showFilters ? (
-        <div className="mb-8 flex flex-wrap gap-2 sm:gap-3">
+        <div className="mb-6 flex flex-wrap gap-2 sm:mb-8 sm:gap-3">
           {collections.map((collection) => {
             const isActive = collection === activeCollection;
 
@@ -73,7 +73,7 @@ export default function PhotoGallery({
                 key={collection}
                 type="button"
                 onClick={() => handleCollectionChange(collection)}
-                className={`border px-4 py-2 text-[11px] tracking-[0.14em] uppercase transition-colors ${
+                className={`border px-4 py-2.5 text-[11px] tracking-[0.14em] uppercase transition-colors sm:py-2 ${
                   isActive
                     ? "border-foreground bg-foreground text-background"
                     : "border-line text-muted hover:border-foreground hover:text-foreground"

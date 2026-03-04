@@ -401,16 +401,16 @@ export default function AdminDashboard() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-14 sm:px-8 lg:px-12">
+    <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-8 sm:py-12 lg:px-12 lg:py-14">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <h1 className="display-font text-5xl">Admin Panel</h1>
-        <div className="text-right text-xs tracking-[0.14em] text-muted uppercase">
+        <h1 className="display-font text-4xl sm:text-5xl">Admin Panel</h1>
+        <div className="w-full text-left text-xs tracking-[0.14em] text-muted uppercase sm:w-auto sm:text-right">
           <p>Cloudinary: {ready ? "Connected" : "Not Configured"}</p>
           <p className="mt-1">Total Photos: {photos.length}</p>
         </div>
       </div>
 
-      <section className="mt-10 border border-foreground/20 bg-white/70 p-6 shadow-[0_14px_40px_rgba(0,0,0,0.05)] backdrop-blur-sm">
+      <section className="mt-8 border border-foreground/20 bg-white/70 p-4 shadow-[0_14px_40px_rgba(0,0,0,0.05)] backdrop-blur-sm sm:mt-10 sm:p-6">
         <h2 className="text-sm tracking-[0.14em] text-foreground uppercase">Upload Photo</h2>
         <p className="mt-2 text-sm text-foreground/70">
           Add a new image, then save caption and poem details for the gallery.
@@ -486,7 +486,7 @@ export default function AdminDashboard() {
 
           <button
             type="submit"
-            className="w-max border border-foreground bg-foreground px-6 py-2 text-[11px] tracking-[0.18em] text-background uppercase transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full border border-foreground bg-foreground px-6 py-3 text-[11px] tracking-[0.18em] text-background uppercase transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-max sm:py-2"
             disabled={isUploading || !ready}
           >
             {isUploading ? "Uploading..." : "Submit"}
@@ -504,7 +504,7 @@ export default function AdminDashboard() {
         ) : null}
       </section>
 
-      <section className="mt-10 border border-line p-6">
+      <section className="mt-8 border border-line p-4 sm:mt-10 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-sm tracking-[0.14em] uppercase">Existing Photos</h2>
           <button
@@ -553,7 +553,7 @@ export default function AdminDashboard() {
                     event.preventDefault();
                     handleDrop(photo.photoId);
                   }}
-                  className={`grid gap-4 border p-4 lg:grid-cols-[180px_1fr] ${
+                  className={`grid gap-4 border p-3 sm:p-4 md:grid-cols-[170px_1fr] lg:grid-cols-[180px_1fr] ${
                     dragOverPhotoId === photo.photoId && draggedPhotoId !== photo.photoId
                       ? "border-foreground"
                       : "border-line"
@@ -564,7 +564,7 @@ export default function AdminDashboard() {
                       draggable
                       onDragStart={(event) => handleDragStart(event, photo.photoId)}
                       onDragEnd={handleDragEnd}
-                      className={`relative aspect-[4/5] overflow-hidden bg-zinc-200 transition-all duration-200 ${
+                      className={`relative aspect-[4/5] overflow-hidden bg-zinc-200 transition-all duration-200 md:max-w-[170px] lg:max-w-[180px] ${
                         draggedPhotoId === photo.photoId
                           ? "cursor-grabbing opacity-70 shadow-xl"
                           : "cursor-grab hover:-translate-y-1 hover:scale-[1.02] hover:shadow-lg"
@@ -584,7 +584,7 @@ export default function AdminDashboard() {
                         type="button"
                         onClick={() => movePhoto(photo.photoId, "up")}
                         disabled={index === 0}
-                        className="flex-1 border border-line px-2 py-1 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground disabled:opacity-40"
+                        className="flex-1 border border-line px-2 py-2 text-[11px] tracking-[0.1em] uppercase transition-colors hover:border-foreground disabled:opacity-40 sm:py-1 sm:text-[10px] sm:tracking-[0.12em]"
                       >
                         Up
                       </button>
@@ -592,7 +592,7 @@ export default function AdminDashboard() {
                         type="button"
                         onClick={() => movePhoto(photo.photoId, "down")}
                         disabled={index === photos.length - 1}
-                        className="flex-1 border border-line px-2 py-1 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground disabled:opacity-40"
+                        className="flex-1 border border-line px-2 py-2 text-[11px] tracking-[0.1em] uppercase transition-colors hover:border-foreground disabled:opacity-40 sm:py-1 sm:text-[10px] sm:tracking-[0.12em]"
                       >
                         Down
                       </button>
@@ -600,7 +600,7 @@ export default function AdminDashboard() {
                         type="button"
                         onClick={() => movePhotoTo(photo.photoId, 0)}
                         disabled={index === 0}
-                        className="border border-line px-2 py-1 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground disabled:opacity-40"
+                        className="border border-line px-2 py-2 text-[11px] tracking-[0.1em] uppercase transition-colors hover:border-foreground disabled:opacity-40 sm:py-1 sm:text-[10px] sm:tracking-[0.12em]"
                       >
                         Top
                       </button>
@@ -608,7 +608,7 @@ export default function AdminDashboard() {
                         type="button"
                         onClick={() => movePhotoTo(photo.photoId, photos.length - 1)}
                         disabled={index === photos.length - 1}
-                        className="border border-line px-2 py-1 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground disabled:opacity-40"
+                        className="border border-line px-2 py-2 text-[11px] tracking-[0.1em] uppercase transition-colors hover:border-foreground disabled:opacity-40 sm:py-1 sm:text-[10px] sm:tracking-[0.12em]"
                       >
                         Bottom
                       </button>
@@ -673,12 +673,12 @@ export default function AdminDashboard() {
                       />
                     </label>
 
-                    <div className="mt-1 flex flex-wrap gap-2 md:col-span-2">
+                    <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:flex-wrap md:col-span-2">
                       <button
                         type="button"
                         onClick={() => handleSavePhoto(photo.photoId)}
                         disabled={isSaving || isDeleting}
-                        className="border border-foreground px-4 py-2 text-[10px] tracking-[0.14em] uppercase transition-colors hover:bg-foreground hover:text-background disabled:opacity-50"
+                        className="w-full border border-foreground px-4 py-2 text-[10px] tracking-[0.14em] uppercase transition-colors hover:bg-foreground hover:text-background disabled:opacity-50 sm:w-auto"
                       >
                         {isSaving ? "Saving..." : "Save"}
                       </button>
@@ -687,7 +687,7 @@ export default function AdminDashboard() {
                         type="button"
                         onClick={() => handleDeletePhoto(photo)}
                         disabled={isSaving || isDeleting}
-                        className="border border-red-600 px-4 py-2 text-[10px] tracking-[0.14em] text-red-700 uppercase transition-colors hover:bg-red-600 hover:text-white disabled:opacity-50"
+                        className="w-full border border-red-600 px-4 py-2 text-[10px] tracking-[0.14em] text-red-700 uppercase transition-colors hover:bg-red-600 hover:text-white disabled:opacity-50 sm:w-auto"
                       >
                         {isDeleting ? "Deleting..." : "Delete"}
                       </button>
