@@ -3,6 +3,26 @@
 import { useEffect } from "react";
 import Image from "next/image";
 
+function getPhotoAltText(photo) {
+  if (typeof photo?.alt === "string" && photo.alt.trim()) {
+    return photo.alt.trim();
+  }
+
+  if (typeof photo?.title === "string" && photo.title.trim()) {
+    return photo.title.trim();
+  }
+
+  if (typeof photo?.caption === "string" && photo.caption.trim()) {
+    return photo.caption.trim();
+  }
+
+  if (typeof photo?.collection === "string" && photo.collection.trim()) {
+    return `${photo.collection.trim()} photograph`;
+  }
+
+  return "Street photograph";
+}
+
 export default function LightboxViewer({
   photo,
   onClose,
@@ -34,6 +54,8 @@ export default function LightboxViewer({
     return null;
   }
 
+  const altText = getPhotoAltText(photo);
+
   return (
     <div className="fixed inset-0 z-50 bg-black/95 text-white">
       <button
@@ -48,7 +70,7 @@ export default function LightboxViewer({
         <div className="relative min-h-0 flex-1">
           <Image
             src={photo.imageUrl}
-            alt={photo.alt}
+            alt={altText}
             fill
             sizes="100vw"
             className="object-contain"

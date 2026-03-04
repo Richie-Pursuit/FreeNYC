@@ -1,22 +1,44 @@
 import Image from "next/image";
 
+function getPhotoAltText(photo) {
+  if (typeof photo?.alt === "string" && photo.alt.trim()) {
+    return photo.alt.trim();
+  }
+
+  if (typeof photo?.title === "string" && photo.title.trim()) {
+    return photo.title.trim();
+  }
+
+  if (typeof photo?.caption === "string" && photo.caption.trim()) {
+    return photo.caption.trim();
+  }
+
+  if (typeof photo?.collection === "string" && photo.collection.trim()) {
+    return `${photo.collection.trim()} photograph`;
+  }
+
+  return "Street photograph";
+}
+
 export default function PhotoCard({
   photo,
   onOpen,
   layoutClass,
   priority = false,
 }) {
+  const altText = getPhotoAltText(photo);
+
   return (
     <article className={`relative overflow-hidden ${layoutClass}`}>
       <button
         type="button"
         onClick={onOpen}
         className="group relative block h-full w-full"
-        aria-label={`Open ${photo.title}`}
+        aria-label={`Open ${altText}`}
       >
         <Image
           src={photo.imageUrl}
-          alt={photo.alt}
+          alt={altText}
           fill
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           className="object-cover transition duration-700 group-hover:scale-[1.02]"

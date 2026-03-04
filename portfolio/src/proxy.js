@@ -1,24 +1,45 @@
-import { withAuth } from "next-auth/middleware";
+import { NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
 import { isAllowedAdminEmail } from "@/lib/auth-policy";
 
-export default withAuth({
-  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
-  pages: {
-    signIn: "/login",
-  },
-  callbacks: {
-    authorized: ({ token, req }) => {
-      const isAdminRoute = req.nextUrl.pathname.startsWith("/admin");
-      if (!isAdminRoute) {
-        return true;
-      }
+function hasAdminGate(request) {
+  return request.cookies.get("admin_gate")?.value === "1";
+}
 
-      const email = typeof token?.email === "string" ? token.email : "";
-      return isAllowedAdminEmail(email);
-    },
-  },
-});
+export default async function proxy(request) {
+  const pathname = request.nextUrl.pathname;
+  const isLoginRoute = pathname === "/login";
+  const isAdminRoute = pathname.startsWith("/admin");
+
+  if (!isLoginRoute && !isAdminRoute) {
+    return NextResponse.next();
+  }
+
+  if (!hasAdminGate(request)) {
+    const homeUrl = new URL("/", request.url);
+    homeUrl.searchParams.set("admin", "locked");
+    return NextResponse.redirect(homeUrl);
+  }
+
+  if (!isAdminRoute) {
+    return NextResponse.next();
+  }
+
+  const token = await getToken({
+    req: request,
+    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+  });
+
+  const email = typeof token?.email === "string" ? token.email : "";
+  if (!isAllowedAdminEmail(email)) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("callbackUrl", request.nextUrl.href);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  return NextResponse.next();
+}
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin/:path*", "/login"],
 };

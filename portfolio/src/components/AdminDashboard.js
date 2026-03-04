@@ -87,6 +87,8 @@ export default function AdminDashboard() {
   const [deletingPhotoId, setDeletingPhotoId] = useState("");
   const [isSavingOrder, setIsSavingOrder] = useState(false);
   const [orderDirty, setOrderDirty] = useState(false);
+  const [draggedPhotoId, setDraggedPhotoId] = useState("");
+  const [dragOverPhotoId, setDragOverPhotoId] = useState("");
 
   const isUploading = uploadStatus === "uploading";
 
@@ -299,6 +301,72 @@ export default function AdminDashboard() {
     setManageMessage("");
   };
 
+  const movePhotoTo = (photoId, targetIndex) => {
+    setPhotos((current) => {
+      const index = current.findIndex((photo) => photo.photoId === photoId);
+      if (index < 0 || index === targetIndex || targetIndex < 0 || targetIndex >= current.length) {
+        return current;
+      }
+
+      const next = [...current];
+      const [moved] = next.splice(index, 1);
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+
+    setOrderDirty(true);
+    setManageStatus("idle");
+    setManageMessage("");
+  };
+
+  const handleDragStart = (event, photoId) => {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", photoId);
+    setDraggedPhotoId(photoId);
+    setDragOverPhotoId(photoId);
+    setManageStatus("idle");
+    setManageMessage("");
+  };
+
+  const handleDragEnter = (photoId) => {
+    if (!draggedPhotoId || draggedPhotoId === photoId) {
+      return;
+    }
+
+    setDragOverPhotoId(photoId);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedPhotoId("");
+    setDragOverPhotoId("");
+  };
+
+  const handleDrop = (targetPhotoId) => {
+    if (!draggedPhotoId || draggedPhotoId === targetPhotoId) {
+      handleDragEnd();
+      return;
+    }
+
+    setPhotos((current) => {
+      const fromIndex = current.findIndex((photo) => photo.photoId === draggedPhotoId);
+      const toIndex = current.findIndex((photo) => photo.photoId === targetPhotoId);
+
+      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+        return current;
+      }
+
+      const next = [...current];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+
+    setOrderDirty(true);
+    setManageStatus("idle");
+    setManageMessage("");
+    handleDragEnd();
+  };
+
   const saveOrder = async () => {
     if (!orderDirty || photos.length === 0) {
       return;
@@ -342,22 +410,25 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <section className="mt-10 border border-line p-6">
-        <h2 className="text-sm tracking-[0.14em] uppercase">Upload Photo</h2>
+      <section className="mt-10 border border-foreground/20 bg-white/70 p-6 shadow-[0_14px_40px_rgba(0,0,0,0.05)] backdrop-blur-sm">
+        <h2 className="text-sm tracking-[0.14em] text-foreground uppercase">Upload Photo</h2>
+        <p className="mt-2 text-sm text-foreground/70">
+          Add a new image, then save caption and poem details for the gallery.
+        </p>
 
         <form onSubmit={handleUploadSubmit} className="mt-6 grid gap-4 md:grid-cols-2">
-          <label className="text-xs tracking-[0.14em] text-muted uppercase md:col-span-2">
+          <label className="text-xs tracking-[0.14em] text-foreground/80 uppercase md:col-span-2">
             Photo File
             <input
               type="file"
               accept="image/*"
               onChange={(event) => setFile(event.target.files?.[0] || null)}
-              className="mt-2 block w-full border border-line px-4 py-3 text-sm normal-case outline-none file:mr-4 file:border-0 file:bg-transparent file:text-xs file:tracking-[0.1em] file:uppercase focus:border-foreground"
+              className="mt-2 block w-full border border-foreground/30 bg-white px-4 py-3 text-sm text-foreground normal-case outline-none file:mr-4 file:border file:border-foreground/30 file:bg-foreground file:px-3 file:py-1 file:text-[10px] file:tracking-[0.1em] file:text-background file:uppercase file:transition-opacity hover:file:opacity-90 focus:border-foreground focus:ring-2 focus:ring-foreground/15"
               disabled={isUploading}
             />
           </label>
 
-          <label className="text-xs tracking-[0.14em] text-muted uppercase">
+          <label className="text-xs tracking-[0.14em] text-foreground/80 uppercase">
             Title
             <input
               name="title"
@@ -365,26 +436,29 @@ export default function AdminDashboard() {
               onChange={handleUploadChange}
               type="text"
               placeholder="Title"
-              className="mt-2 w-full border border-line px-4 py-3 text-sm normal-case outline-none focus:border-foreground"
+              className="mt-2 w-full border border-foreground/30 bg-white px-4 py-3 text-sm text-foreground normal-case placeholder:text-foreground/45 outline-none focus:border-foreground focus:ring-2 focus:ring-foreground/15"
               disabled={isUploading}
             />
           </label>
 
-          <label className="text-xs tracking-[0.14em] text-muted uppercase">
+          <label className="text-xs tracking-[0.14em] text-foreground/80 uppercase">
             Collection
-            <input
+            <select
               name="collection"
-              list="collection-options"
               value={uploadForm.collection}
               onChange={handleUploadChange}
-              type="text"
-              placeholder="Collection"
-              className="mt-2 w-full border border-line px-4 py-3 text-sm normal-case outline-none focus:border-foreground"
+              className="mt-2 w-full border border-foreground/30 bg-white px-4 py-3 text-sm text-foreground normal-case outline-none focus:border-foreground focus:ring-2 focus:ring-foreground/15"
               disabled={isUploading}
-            />
+            >
+              {collectionOptions.map((collection) => (
+                <option key={collection} value={collection}>
+                  {collection}
+                </option>
+              ))}
+            </select>
           </label>
 
-          <label className="text-xs tracking-[0.14em] text-muted uppercase md:col-span-2">
+          <label className="text-xs tracking-[0.14em] text-foreground/80 uppercase md:col-span-2">
             Caption
             <textarea
               name="caption"
@@ -392,12 +466,12 @@ export default function AdminDashboard() {
               onChange={handleUploadChange}
               rows={3}
               placeholder="Caption"
-              className="mt-2 w-full border border-line px-4 py-3 text-sm normal-case outline-none focus:border-foreground"
+              className="mt-2 w-full border border-foreground/30 bg-white px-4 py-3 text-sm text-foreground normal-case placeholder:text-foreground/45 outline-none focus:border-foreground focus:ring-2 focus:ring-foreground/15"
               disabled={isUploading}
             />
           </label>
 
-          <label className="text-xs tracking-[0.14em] text-muted uppercase md:col-span-2">
+          <label className="text-xs tracking-[0.14em] text-foreground/80 uppercase md:col-span-2">
             Poem
             <textarea
               name="poem"
@@ -405,14 +479,14 @@ export default function AdminDashboard() {
               onChange={handleUploadChange}
               rows={4}
               placeholder="Poem"
-              className="mt-2 w-full border border-line px-4 py-3 text-sm normal-case outline-none focus:border-foreground"
+              className="mt-2 w-full border border-foreground/30 bg-white px-4 py-3 text-sm text-foreground normal-case placeholder:text-foreground/45 outline-none focus:border-foreground focus:ring-2 focus:ring-foreground/15"
               disabled={isUploading}
             />
           </label>
 
           <button
             type="submit"
-            className="w-max border border-foreground px-6 py-2 text-[11px] tracking-[0.18em] uppercase transition-colors hover:bg-foreground hover:text-background disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-max border border-foreground bg-foreground px-6 py-2 text-[11px] tracking-[0.18em] text-background uppercase transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={isUploading || !ready}
           >
             {isUploading ? "Uploading..." : "Submit"}
@@ -442,6 +516,9 @@ export default function AdminDashboard() {
             {isSavingOrder ? "Saving..." : "Save Order"}
           </button>
         </div>
+        <p className="mt-3 text-xs text-muted">
+          Drag photo thumbnails to reorder quickly, then click Save Order.
+        </p>
 
         {manageMessage ? (
           <p
@@ -467,10 +544,33 @@ export default function AdminDashboard() {
               return (
                 <article
                   key={photo.photoId}
-                  className="grid gap-4 border border-line p-4 lg:grid-cols-[180px_1fr]"
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                  }}
+                  onDragEnter={() => handleDragEnter(photo.photoId)}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    handleDrop(photo.photoId);
+                  }}
+                  className={`grid gap-4 border p-4 lg:grid-cols-[180px_1fr] ${
+                    dragOverPhotoId === photo.photoId && draggedPhotoId !== photo.photoId
+                      ? "border-foreground"
+                      : "border-line"
+                  }`}
                 >
                   <div className="space-y-3">
-                    <div className="relative aspect-[4/5] overflow-hidden bg-zinc-200">
+                    <div
+                      draggable
+                      onDragStart={(event) => handleDragStart(event, photo.photoId)}
+                      onDragEnd={handleDragEnd}
+                      className={`relative aspect-[4/5] overflow-hidden bg-zinc-200 transition-all duration-200 ${
+                        draggedPhotoId === photo.photoId
+                          ? "cursor-grabbing opacity-70 shadow-xl"
+                          : "cursor-grab hover:-translate-y-1 hover:scale-[1.02] hover:shadow-lg"
+                      }`}
+                      title="Drag to reorder"
+                    >
                       <Image
                         src={photo.thumbnailUrl || photo.imageUrl}
                         alt={photo.title || "Photo"}
@@ -479,7 +579,7 @@ export default function AdminDashboard() {
                         className="object-cover"
                       />
                     </div>
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
                         onClick={() => movePhoto(photo.photoId, "up")}
@@ -495,6 +595,22 @@ export default function AdminDashboard() {
                         className="flex-1 border border-line px-2 py-1 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground disabled:opacity-40"
                       >
                         Down
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => movePhotoTo(photo.photoId, 0)}
+                        disabled={index === 0}
+                        className="border border-line px-2 py-1 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground disabled:opacity-40"
+                      >
+                        Top
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => movePhotoTo(photo.photoId, photos.length - 1)}
+                        disabled={index === photos.length - 1}
+                        className="border border-line px-2 py-1 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground disabled:opacity-40"
+                      >
+                        Bottom
                       </button>
                     </div>
                   </div>
@@ -515,16 +631,20 @@ export default function AdminDashboard() {
 
                     <label className="text-[10px] tracking-[0.12em] text-muted uppercase">
                       Collection
-                      <input
-                        type="text"
-                        list="collection-options"
+                      <select
                         value={draft.collection}
                         onChange={(event) =>
                           handleDraftChange(photo.photoId, "collection", event.target.value)
                         }
                         className="mt-2 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
                         disabled={isSaving || isDeleting}
-                      />
+                      >
+                        {collectionOptions.map((collection) => (
+                          <option key={collection} value={collection}>
+                            {collection}
+                          </option>
+                        ))}
+                      </select>
                     </label>
 
                     <label className="text-[10px] tracking-[0.12em] text-muted uppercase md:col-span-2">
@@ -580,11 +700,6 @@ export default function AdminDashboard() {
         )}
       </section>
 
-      <datalist id="collection-options">
-        {collectionOptions.map((collection) => (
-          <option key={collection} value={collection} />
-        ))}
-      </datalist>
     </main>
   );
 }

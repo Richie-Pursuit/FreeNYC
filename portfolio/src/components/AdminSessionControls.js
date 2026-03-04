@@ -3,6 +3,11 @@
 import { signOut } from "next-auth/react";
 
 export default function AdminSessionControls({ email = "" }) {
+  const handleSignOut = async () => {
+    await fetch("/api/admin-gate", { method: "DELETE" }).catch(() => {});
+    await signOut({ callbackUrl: "/" });
+  };
+
   return (
     <div className="flex items-center gap-4">
       {email ? (
@@ -10,7 +15,7 @@ export default function AdminSessionControls({ email = "" }) {
       ) : null}
       <button
         type="button"
-        onClick={() => signOut({ callbackUrl: "/" })}
+        onClick={handleSignOut}
         className="text-[11px] tracking-[0.16em] text-muted uppercase transition-colors hover:text-foreground"
       >
         Sign Out
