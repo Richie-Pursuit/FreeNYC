@@ -7,6 +7,7 @@
   --muted: rgba(17, 17, 17, 0.6);
   --font-body: "Avenir Next", "Gill Sans Nova", "Segoe UI", sans-serif;
   --font-display: "Iowan Old Style", "Baskerville", "Times New Roman", serif;
+  --font-logo: "Permanent Marker", "Marker Felt", "Trebuchet MS", sans-serif;
 }
 
 @theme inline {
@@ -35,4 +36,8 @@ body {
 
 .display-font {
   font-family: var(--font-display);
+}
+
+.logo-font {
+  font-family: var(--font-logo);
 }

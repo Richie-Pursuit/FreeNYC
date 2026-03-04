@@ -18,6 +18,8 @@ CONTACT_FROM_EMAIL="Free NYC <onboarding@resend.dev>"
 Notes:
 - `CONTACT_TO_EMAIL` is the inbox that receives contact submissions.
 - For production sending, use a verified `CONTACT_FROM_EMAIL` domain in Resend.
+- Contact form requires explicit consent to Privacy Policy and Terms.
+- Legal pages are available at `/privacy` and `/terms`.
 
 ## Default Next.js Notes
 

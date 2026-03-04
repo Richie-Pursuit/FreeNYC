@@ -70,6 +70,7 @@ export async function POST(request) {
   const email = normalizeString(payload?.email);
   const subject = normalizeString(payload?.subject);
   const message = normalizeString(payload?.message);
+  const consent = payload?.consent === true;
   const website = normalizeString(payload?.website);
 
   if (website) {
@@ -95,6 +96,13 @@ export async function POST(request) {
     );
   }
 
+  if (!consent) {
+    return NextResponse.json(
+      { error: "You must accept the Privacy Policy and Terms to submit." },
+      { status: 400 },
+    );
+  }
+
   let savedSubmissionId = null;
   if (isMongoConfigured()) {
     try {
@@ -104,6 +112,8 @@ export async function POST(request) {
         email,
         subject,
         message,
+        consentAccepted: true,
+        consentAcceptedAt: new Date(),
         ipAddress: ip,
         userAgent: request.headers.get("user-agent") || "",
         emailStatus: "pending",

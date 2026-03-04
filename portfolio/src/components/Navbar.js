@@ -150,26 +150,29 @@ export default function Navbar() {
   );
 
   return (
-    <header className="sticky top-0 z-40 border-b border-foreground/10 bg-background/92 px-3 py-3 backdrop-blur-md sm:px-6 lg:px-12">
+    <header className="sticky top-0 z-40 border-b border-foreground/15 bg-[linear-gradient(180deg,rgba(246,246,243,0.97)_0%,rgba(246,246,243,0.91)_100%)] px-3 py-3 backdrop-blur-md sm:px-6 lg:px-12">
       <div className="mx-auto w-full max-w-[1800px]">
         <div className="flex items-center justify-between gap-2">
           <Link
             href="/"
-            className="display-font rounded-md px-2 py-1 text-base tracking-[0.1em] text-foreground uppercase transition-opacity hover:opacity-80 sm:text-xl sm:tracking-[0.14em]"
+            className="group relative inline-flex rounded-md px-2 py-1"
           >
-            Free NYC
+            <span className="logo-font relative z-10 text-lg leading-none text-foreground uppercase transition-transform duration-300 group-hover:scale-[1.02] sm:text-[1.7rem]">
+              Free NYC
+            </span>
+            <span className="pointer-events-none absolute right-1 bottom-1 left-1 h-2 -skew-x-12 rounded-sm bg-foreground/14 transition-colors duration-300 group-hover:bg-foreground/22 sm:h-2.5" />
           </Link>
 
           <div className="flex items-center gap-2">
-            <nav className="hidden items-center gap-1 rounded-full border border-foreground/15 bg-white/80 p-1 shadow-[0_8px_26px_rgba(0,0,0,0.07)] md:flex">
+            <nav className="hidden items-center gap-1.5 rounded-[1.1rem] border border-foreground/25 bg-white/92 p-1.5 shadow-[0_10px_28px_rgba(0,0,0,0.08)] md:flex">
               {navLinks.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`rounded-full px-3 py-2 text-[11px] tracking-[0.16em] uppercase transition-colors sm:px-4 ${
+                  className={`rounded-[0.9rem] px-3 py-2 text-[11px] tracking-[0.16em] uppercase transition-colors sm:px-4 ${
                     isActive(link.href)
-                      ? "bg-foreground text-background"
-                      : "text-foreground/72 hover:bg-foreground/8 hover:text-foreground"
+                      ? "bg-foreground text-background shadow-[inset_0_-2px_0_rgba(255,255,255,0.24)]"
+                      : "text-foreground/78 hover:bg-foreground/10 hover:text-foreground"
                   }`}
                 >
                   {link.label}
@@ -184,7 +187,7 @@ export default function Navbar() {
                   setAdminGateOpen((open) => !open);
                   setAdminError("");
                 }}
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground/20 bg-white/80 text-foreground/85 shadow-[0_8px_24px_rgba(0,0,0,0.06)] transition-colors hover:bg-white hover:text-foreground"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground/25 bg-white/92 text-foreground/90 shadow-[0_8px_24px_rgba(0,0,0,0.07)] transition-colors hover:bg-white hover:text-foreground"
                 aria-label="Admin access"
                 aria-expanded={adminGateOpen}
               >
@@ -196,7 +199,7 @@ export default function Navbar() {
             <button
               type="button"
               onClick={() => setMobileNavOpen((open) => !open)}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground/20 bg-white/80 text-foreground/85 shadow-[0_8px_24px_rgba(0,0,0,0.06)] transition-colors hover:bg-white hover:text-foreground md:hidden"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground/25 bg-white/92 text-foreground/90 shadow-[0_8px_24px_rgba(0,0,0,0.07)] transition-colors hover:bg-white hover:text-foreground md:hidden"
               aria-label="Toggle menu"
               aria-expanded={mobileNavOpen}
             >
@@ -206,7 +209,7 @@ export default function Navbar() {
         </div>
 
         {mobileNavOpen ? (
-          <div className="mt-3 grid gap-2 rounded-2xl border border-foreground/15 bg-white/85 p-2 shadow-[0_10px_24px_rgba(0,0,0,0.08)] md:hidden">
+          <div className="mt-3 grid gap-2 rounded-2xl border border-foreground/20 bg-white/92 p-2 shadow-[0_10px_24px_rgba(0,0,0,0.08)] md:hidden">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
@@ -214,7 +217,7 @@ export default function Navbar() {
                 className={`rounded-xl px-4 py-3 text-xs tracking-[0.14em] uppercase transition-colors ${
                   isActive(link.href)
                     ? "bg-foreground text-background"
-                    : "text-foreground/80 hover:bg-foreground/8 hover:text-foreground"
+                    : "text-foreground/80 hover:bg-foreground/10 hover:text-foreground"
                 }`}
               >
                 {link.label}

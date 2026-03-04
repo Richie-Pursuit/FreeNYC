@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 const defaultForm = {
@@ -7,6 +8,7 @@ const defaultForm = {
   email: "",
   subject: "",
   message: "",
+  consent: false,
   website: "",
 };
 
@@ -26,8 +28,11 @@ export default function ContactForm() {
   const isSending = status === "sending";
 
   const handleChange = (event) => {
-    const { name, value } = event.target;
-    setForm((current) => ({ ...current, [name]: value }));
+    const { name, value, type, checked } = event.target;
+    setForm((current) => ({
+      ...current,
+      [name]: type === "checkbox" ? checked : value,
+    }));
   };
 
   const handleSubmit = async (event) => {
@@ -44,6 +49,7 @@ export default function ContactForm() {
           email: form.email,
           subject: form.subject,
           message: form.message,
+          consent: form.consent,
           website: form.website,
         }),
       }).then(parseJsonResponse);
@@ -112,7 +118,7 @@ export default function ContactForm() {
           value={form.subject}
           onChange={handleChange}
           className="mt-2 w-full border border-foreground/30 bg-white px-4 py-3 text-sm text-foreground placeholder:text-foreground/45 outline-none focus:border-foreground focus:ring-2 focus:ring-foreground/15"
-          placeholder="Contact regarding buying your book"
+          placeholder="Subject"
           required
           minLength={3}
           maxLength={180}
@@ -134,6 +140,29 @@ export default function ContactForm() {
           maxLength={3000}
           disabled={isSending}
         />
+      </label>
+
+      <label className="flex items-start gap-3 border border-foreground/20 bg-white/70 p-3 text-[11px] tracking-[0.04em] text-foreground/80 sm:text-xs">
+        <input
+          type="checkbox"
+          name="consent"
+          checked={form.consent}
+          onChange={handleChange}
+          className="mt-0.5 h-4 w-4 accent-foreground"
+          required
+          disabled={isSending}
+        />
+        <span>
+          I agree to the{" "}
+          <Link href="/privacy" className="underline decoration-foreground/45">
+            Privacy Policy
+          </Link>{" "}
+          and{" "}
+          <Link href="/terms" className="underline decoration-foreground/45">
+            Terms of Use
+          </Link>
+          .
+        </span>
       </label>
 
       <button
