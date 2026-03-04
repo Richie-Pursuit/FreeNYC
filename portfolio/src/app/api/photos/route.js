@@ -5,6 +5,7 @@ import {
   listPhotos,
   reorderPhotos,
 } from "@/lib/photoStore";
+import { requireApiAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,13 @@ function badRequest(message) {
   return NextResponse.json({ error: message }, { status: 400 });
 }
 
+function internalError(error) {
+  return NextResponse.json(
+    { error: error?.message || "Internal server error." },
+    { status: 500 },
+  );
+}
+
 async function parseJson(request) {
   try {
     return await request.json();
@@ -30,69 +38,94 @@ async function parseJson(request) {
 }
 
 export async function GET(request) {
-  const searchParams = request.nextUrl.searchParams;
-  const collection = searchParams.get("collection") || "All";
-  const q = searchParams.get("q") || "";
-  const limit = toInt(searchParams.get("limit"), 60);
-  const offset = toInt(searchParams.get("offset"), 0);
-  const sort = searchParams.get("sort") || "newest";
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const collection = searchParams.get("collection") || "All";
+    const q = searchParams.get("q") || "";
+    const limit = toInt(searchParams.get("limit"), 60);
+    const offset = toInt(searchParams.get("offset"), 0);
+    const sort = searchParams.get("sort") || "newest";
 
-  const result = listPhotos({ collection, q, limit, offset, sort });
+    const [result, collections] = await Promise.all([
+      listPhotos({ collection, q, limit, offset, sort }),
+      getCollections(),
+    ]);
 
-  return NextResponse.json({
-    photos: result.photos,
-    pagination: {
-      total: result.total,
-      limit: result.limit,
-      offset: result.offset,
-      returned: result.photos.length,
-    },
-    collections: getCollections(),
-    filters: {
-      collection,
-      q,
-      sort,
-    },
-  });
+    return NextResponse.json({
+      photos: result.photos,
+      pagination: {
+        total: result.total,
+        limit: result.limit,
+        offset: result.offset,
+        returned: result.photos.length,
+      },
+      collections,
+      filters: {
+        collection,
+        q,
+        sort,
+      },
+    });
+  } catch (error) {
+    return internalError(error);
+  }
 }
 
 export async function POST(request) {
-  const body = await parseJson(request);
-  if (!body) {
-    return badRequest("Request body must be valid JSON.");
-  }
+  try {
+    const authResult = await requireApiAuth();
+    if (authResult.errorResponse) {
+      return authResult.errorResponse;
+    }
 
-  const result = createPhoto(body);
-  if (result.error) {
-    return badRequest(result.error);
-  }
+    const body = await parseJson(request);
+    if (!body) {
+      return badRequest("Request body must be valid JSON.");
+    }
 
-  return NextResponse.json(
-    {
-      photo: result.photo,
-      message: "Photo metadata created.",
-    },
-    { status: 201 },
-  );
+    const result = await createPhoto(body);
+    if (result.error) {
+      return badRequest(result.error);
+    }
+
+    return NextResponse.json(
+      {
+        photo: result.photo,
+        message: "Photo metadata created.",
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    return internalError(error);
+  }
 }
 
 export async function PATCH(request) {
-  const body = await parseJson(request);
-  if (!body) {
-    return badRequest("Request body must be valid JSON.");
-  }
+  try {
+    const authResult = await requireApiAuth();
+    if (authResult.errorResponse) {
+      return authResult.errorResponse;
+    }
 
-  if (body.action !== "reorder") {
-    return badRequest("Unsupported action. Use action: 'reorder'.");
-  }
+    const body = await parseJson(request);
+    if (!body) {
+      return badRequest("Request body must be valid JSON.");
+    }
 
-  const result = reorderPhotos(body.photoIds);
-  if (result.error) {
-    return badRequest(result.error);
-  }
+    if (body.action !== "reorder") {
+      return badRequest("Unsupported action. Use action: 'reorder'.");
+    }
 
-  return NextResponse.json({
-    photos: result.photos,
-    message: "Photo order updated.",
-  });
+    const result = await reorderPhotos(body.photoIds);
+    if (result.error) {
+      return badRequest(result.error);
+    }
+
+    return NextResponse.json({
+      photos: result.photos,
+      message: "Photo order updated.",
+    });
+  } catch (error) {
+    return internalError(error);
+  }
 }

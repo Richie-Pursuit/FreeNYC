@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { getMongoDatabase } from "@/lib/mongodb";
 import { samplePhotos } from "@/lib/samplePhotos";
 
-const STORE_KEY = "__portfolio_photo_store__";
+const PHOTO_COLLECTION = "photos";
 const DEFAULT_COLLECTION = "City Life";
+const READY_PROMISE_KEY = "__portfolio_photo_store_ready__";
 
 function sanitizeText(value, fallback = "", maxLength = 400) {
   if (typeof value !== "string") {
@@ -21,47 +23,8 @@ function sanitizeCollection(value) {
   return sanitizeText(value, DEFAULT_COLLECTION, 80);
 }
 
-function isValidUrl(value) {
-  try {
-    new URL(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function buildSeedPhoto(photo, index) {
-  const createdAt = new Date(Date.now() - index * 3600_000).toISOString();
-
-  return {
-    photoId: photo.photoId,
-    imageUrl: photo.imageUrl,
-    thumbnailUrl: photo.imageUrl,
-    publicId: "",
-    title: sanitizeText(photo.title, "Untitled", 140),
-    caption: sanitizeText(photo.caption, "", 600),
-    poem: sanitizeText(photo.poem, "", 600),
-    collection: sanitizeCollection(photo.collection),
-    createdAt,
-    updatedAt: createdAt,
-  };
-}
-
-function getSeedData() {
-  return samplePhotos.map((photo, index) => buildSeedPhoto(photo, index));
-}
-
-function getStore() {
-  if (!globalThis[STORE_KEY]) {
-    globalThis[STORE_KEY] = getSeedData();
-  }
-
-  return globalThis[STORE_KEY];
-}
-
-function replaceStore(nextStore) {
-  globalThis[STORE_KEY] = nextStore;
-  return globalThis[STORE_KEY];
+function sanitizePhotoId(value) {
+  return sanitizeText(value, "", 120);
 }
 
 function toNumber(value, fallback) {
@@ -73,60 +36,181 @@ function toNumber(value, fallback) {
   return parsed;
 }
 
-export function getCollections() {
-  return [...new Set(getStore().map((photo) => photo.collection))].sort((a, b) =>
-    a.localeCompare(b),
-  );
+function isValidUrl(value) {
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-export function listPhotos({
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeSort(value) {
+  if (value === "oldest" || value === "manual") {
+    return value;
+  }
+
+  return "newest";
+}
+
+function toPhoto(doc) {
+  if (!doc) {
+    return null;
+  }
+
+  return {
+    photoId: doc.photoId,
+    imageUrl: doc.imageUrl,
+    thumbnailUrl: doc.thumbnailUrl || doc.imageUrl,
+    publicId: doc.publicId || "",
+    title: doc.title || "Untitled",
+    caption: doc.caption || "",
+    poem: doc.poem || "",
+    collection: doc.collection || DEFAULT_COLLECTION,
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt,
+    order: typeof doc.order === "number" ? doc.order : 0,
+  };
+}
+
+function buildSeedPhotoDoc(photo, index) {
+  const createdAt = new Date(Date.now() - index * 3600_000).toISOString();
+
+  return {
+    photoId: sanitizePhotoId(photo.photoId) || `seed-${randomUUID()}`,
+    imageUrl: photo.imageUrl,
+    thumbnailUrl: photo.imageUrl,
+    publicId: "",
+    title: sanitizeText(photo.title, "Untitled", 140),
+    caption: sanitizeText(photo.caption, "", 600),
+    poem: sanitizeText(photo.poem, "", 600),
+    collection: sanitizeCollection(photo.collection),
+    createdAt,
+    updatedAt: createdAt,
+    order: index,
+  };
+}
+
+async function getPhotoCollection() {
+  const db = await getMongoDatabase();
+  return db.collection(PHOTO_COLLECTION);
+}
+
+async function ensurePhotoStoreReady() {
+  if (!globalThis[READY_PROMISE_KEY]) {
+    globalThis[READY_PROMISE_KEY] = (async () => {
+      const collection = await getPhotoCollection();
+
+      await collection.createIndex({ photoId: 1 }, { unique: true, name: "photoId_unique" });
+      await collection.createIndex({ createdAt: -1 }, { name: "createdAt_desc" });
+      await collection.createIndex({ order: 1 }, { name: "order_asc" });
+      await collection.createIndex({ collection: 1, createdAt: -1 }, { name: "collection_createdAt" });
+
+      const seedOperations = samplePhotos.map((photo, index) => {
+        const seedDoc = buildSeedPhotoDoc(photo, index);
+
+        return {
+          updateOne: {
+            filter: { photoId: seedDoc.photoId },
+            update: { $setOnInsert: seedDoc },
+            upsert: true,
+          },
+        };
+      });
+
+      if (seedOperations.length > 0) {
+        await collection.bulkWrite(seedOperations, { ordered: false });
+      }
+    })();
+  }
+
+  await globalThis[READY_PROMISE_KEY];
+}
+
+async function getNextOrder(collection) {
+  const latest = await collection.find({}, { projection: { order: 1 } }).sort({ order: -1 }).limit(1).next();
+
+  if (!latest || typeof latest.order !== "number") {
+    return 0;
+  }
+
+  return latest.order + 1;
+}
+
+export async function getCollections() {
+  await ensurePhotoStoreReady();
+  const collection = await getPhotoCollection();
+  const values = await collection.distinct("collection", {
+    collection: { $exists: true, $ne: "" },
+  });
+
+  return values.sort((a, b) => a.localeCompare(b));
+}
+
+export async function listPhotos({
   collection = "All",
   q = "",
   limit = 60,
   offset = 0,
   sort = "newest",
 } = {}) {
-  const query = sanitizeText(q, "", 120).toLowerCase();
+  await ensurePhotoStoreReady();
+  const photos = await getPhotoCollection();
+
+  const queryText = sanitizeText(q, "", 120);
   const selectedCollection = sanitizeText(collection, "All", 80);
-  let photos = [...getStore()];
-
-  if (selectedCollection !== "All") {
-    photos = photos.filter((photo) => photo.collection === selectedCollection);
-  }
-
-  if (query) {
-    photos = photos.filter((photo) => {
-      const haystack = `${photo.title} ${photo.caption} ${photo.poem}`.toLowerCase();
-      return haystack.includes(query);
-    });
-  }
-
-  photos.sort((a, b) => {
-    if (sort === "oldest") {
-      return a.createdAt.localeCompare(b.createdAt);
-    }
-
-    return b.createdAt.localeCompare(a.createdAt);
-  });
-
   const safeOffset = Math.max(0, toNumber(offset, 0));
   const safeLimit = Math.min(300, Math.max(1, toNumber(limit, 60)));
-  const total = photos.length;
-  const items = photos.slice(safeOffset, safeOffset + safeLimit);
+  const normalizedSort = normalizeSort(sort);
+
+  const filter = {};
+  if (selectedCollection !== "All") {
+    filter.collection = selectedCollection;
+  }
+
+  if (queryText) {
+    const regex = new RegExp(escapeRegex(queryText), "i");
+    filter.$or = [{ title: regex }, { caption: regex }, { poem: regex }];
+  }
+
+  const sortSpec =
+    normalizedSort === "oldest"
+      ? { createdAt: 1 }
+      : normalizedSort === "manual"
+        ? { order: 1, createdAt: -1 }
+        : { createdAt: -1 };
+
+  const [items, total] = await Promise.all([
+    photos.find(filter).sort(sortSpec).skip(safeOffset).limit(safeLimit).toArray(),
+    photos.countDocuments(filter),
+  ]);
 
   return {
-    photos: items,
+    photos: items.map(toPhoto),
     total,
     limit: safeLimit,
     offset: safeOffset,
   };
 }
 
-export function getPhotoById(photoId) {
-  return getStore().find((photo) => photo.photoId === photoId) || null;
+export async function getPhotoById(photoId) {
+  const safePhotoId = sanitizePhotoId(photoId);
+  if (!safePhotoId) {
+    return null;
+  }
+
+  await ensurePhotoStoreReady();
+  const collection = await getPhotoCollection();
+  const photo = await collection.findOne({ photoId: safePhotoId });
+
+  return toPhoto(photo);
 }
 
-export function createPhoto(input) {
+export async function createPhoto(input) {
   if (!input || typeof input !== "object") {
     return { error: "Request body is required." };
   }
@@ -136,9 +220,13 @@ export function createPhoto(input) {
     return { error: "A valid imageUrl is required." };
   }
 
+  await ensurePhotoStoreReady();
+  const collection = await getPhotoCollection();
+
   const now = new Date().toISOString();
+  const nextOrder = await getNextOrder(collection);
   const photo = {
-    photoId: sanitizeText(input.photoId, "", 120) || `photo-${randomUUID()}`,
+    photoId: sanitizePhotoId(input.photoId) || `photo-${randomUUID()}`,
     imageUrl,
     thumbnailUrl: sanitizeText(input.thumbnailUrl, "", 1200) || imageUrl,
     publicId: sanitizeText(input.publicId, "", 180),
@@ -148,15 +236,25 @@ export function createPhoto(input) {
     collection: sanitizeCollection(input.collection),
     createdAt: now,
     updatedAt: now,
+    order: nextOrder,
   };
 
-  const store = getStore();
-  store.unshift(photo);
-  return { photo };
+  try {
+    await collection.insertOne(photo);
+  } catch (error) {
+    if (error?.code === 11000) {
+      return { error: "photoId already exists." };
+    }
+
+    throw error;
+  }
+
+  return { photo: toPhoto(photo) };
 }
 
-export function updatePhotoById(photoId, updates) {
-  if (!photoId) {
+export async function updatePhotoById(photoId, updates) {
+  const safePhotoId = sanitizePhotoId(photoId);
+  if (!safePhotoId) {
     return { error: "photoId is required." };
   }
 
@@ -164,20 +262,17 @@ export function updatePhotoById(photoId, updates) {
     return { error: "Updates are required." };
   }
 
-  const store = getStore();
-  const index = store.findIndex((photo) => photo.photoId === photoId);
-  if (index === -1) {
-    return { error: "Photo not found.", status: 404 };
-  }
+  await ensurePhotoStoreReady();
+  const collection = await getPhotoCollection();
 
-  const next = { ...store[index] };
+  const patch = {};
 
   if (updates.imageUrl !== undefined) {
     const imageUrl = sanitizeText(updates.imageUrl, "", 1200);
     if (!imageUrl || !isValidUrl(imageUrl)) {
       return { error: "imageUrl must be a valid URL." };
     }
-    next.imageUrl = imageUrl;
+    patch.imageUrl = imageUrl;
   }
 
   if (updates.thumbnailUrl !== undefined) {
@@ -185,64 +280,122 @@ export function updatePhotoById(photoId, updates) {
     if (!thumbnailUrl || !isValidUrl(thumbnailUrl)) {
       return { error: "thumbnailUrl must be a valid URL." };
     }
-    next.thumbnailUrl = thumbnailUrl;
+    patch.thumbnailUrl = thumbnailUrl;
   }
 
   if (updates.publicId !== undefined) {
-    next.publicId = sanitizeText(updates.publicId, "", 180);
+    patch.publicId = sanitizeText(updates.publicId, "", 180);
   }
 
   if (updates.title !== undefined) {
-    next.title = sanitizeText(updates.title, "Untitled", 140);
+    patch.title = sanitizeText(updates.title, "Untitled", 140);
   }
 
   if (updates.caption !== undefined) {
-    next.caption = sanitizeText(updates.caption, "", 600);
+    patch.caption = sanitizeText(updates.caption, "", 600);
   }
 
   if (updates.poem !== undefined) {
-    next.poem = sanitizeText(updates.poem, "", 600);
+    patch.poem = sanitizeText(updates.poem, "", 600);
   }
 
   if (updates.collection !== undefined) {
-    next.collection = sanitizeCollection(updates.collection);
+    patch.collection = sanitizeCollection(updates.collection);
   }
 
-  next.updatedAt = new Date().toISOString();
-  store[index] = next;
+  if (Object.keys(patch).length === 0) {
+    const existing = await collection.findOne({ photoId: safePhotoId });
+    if (!existing) {
+      return { error: "Photo not found.", status: 404 };
+    }
 
-  return { photo: next };
+    return { photo: toPhoto(existing) };
+  }
+
+  patch.updatedAt = new Date().toISOString();
+
+  const updateResult = await collection.updateOne(
+    { photoId: safePhotoId },
+    { $set: patch },
+  );
+
+  if (!updateResult.matchedCount) {
+    return { error: "Photo not found.", status: 404 };
+  }
+
+  const photo = await collection.findOne({ photoId: safePhotoId });
+  return { photo: toPhoto(photo) };
 }
 
-export function deletePhotoById(photoId) {
-  const store = getStore();
-  const existing = store.find((photo) => photo.photoId === photoId);
+export async function deletePhotoById(photoId) {
+  const safePhotoId = sanitizePhotoId(photoId);
+  if (!safePhotoId) {
+    return { error: "photoId is required." };
+  }
+
+  await ensurePhotoStoreReady();
+  const collection = await getPhotoCollection();
+  const existing = await collection.findOne({ photoId: safePhotoId });
 
   if (!existing) {
     return { error: "Photo not found.", status: 404 };
   }
 
-  replaceStore(store.filter((photo) => photo.photoId !== photoId));
-  return { photo: existing };
+  await collection.deleteOne({ photoId: safePhotoId });
+  return { photo: toPhoto(existing) };
 }
 
-export function reorderPhotos(photoIds) {
+export async function reorderPhotos(photoIds) {
   if (!Array.isArray(photoIds) || photoIds.length === 0) {
     return { error: "photoIds must be a non-empty array." };
   }
 
-  const store = getStore();
-  const rankedIds = photoIds
-    .map((id) => sanitizeText(id, "", 120))
-    .filter(Boolean);
-  const rankMap = new Map(rankedIds.map((id, index) => [id, index]));
+  await ensurePhotoStoreReady();
+  const collection = await getPhotoCollection();
+  const current = await collection
+    .find({}, { projection: { photoId: 1, order: 1, createdAt: 1 } })
+    .sort({ order: 1, createdAt: -1 })
+    .toArray();
 
-  const reordered = [...store].sort((a, b) => {
-    const aRank = rankMap.has(a.photoId) ? rankMap.get(a.photoId) : Number.MAX_SAFE_INTEGER;
-    const bRank = rankMap.has(b.photoId) ? rankMap.get(b.photoId) : Number.MAX_SAFE_INTEGER;
-    return aRank - bRank;
-  });
+  const existingIds = current.map((doc) => doc.photoId);
+  const existingSet = new Set(existingIds);
 
-  replaceStore(reordered);
-  return { photos: reordered };
+  const requested = [];
+  const requestedSet = new Set();
+
+  for (const id of photoIds) {
+    const safeId = sanitizePhotoId(id);
+    if (!safeId || requestedSet.has(safeId) || !existingSet.has(safeId)) {
+      continue;
+    }
+
+    requested.push(safeId);
+    requestedSet.add(safeId);
+  }
+
+  if (requested.length === 0) {
+    return { error: "None of the provided photoIds were found." };
+  }
+
+  const leftovers = existingIds.filter((id) => !requestedSet.has(id));
+  const finalOrder = [...requested, ...leftovers];
+  const now = new Date().toISOString();
+
+  await collection.bulkWrite(
+    finalOrder.map((id, index) => ({
+      updateOne: {
+        filter: { photoId: id },
+        update: {
+          $set: {
+            order: index,
+            updatedAt: now,
+          },
+        },
+      },
+    })),
+    { ordered: true },
+  );
+
+  const updated = await collection.find({}).sort({ order: 1, createdAt: -1 }).toArray();
+  return { photos: updated.map(toPhoto) };
 }
