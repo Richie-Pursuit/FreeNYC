@@ -27,6 +27,24 @@ function sanitizePhotoId(value) {
   return sanitizeText(value, "", 120);
 }
 
+function sanitizeBoolean(value, fallback = false) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") {
+      return true;
+    }
+    if (normalized === "false") {
+      return false;
+    }
+  }
+
+  return fallback;
+}
+
 function toNumber(value, fallback) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
@@ -50,7 +68,7 @@ function escapeRegex(value) {
 }
 
 function normalizeSort(value) {
-  if (value === "oldest" || value === "manual") {
+  if (value === "oldest" || value === "manual" || value === "curated") {
     return value;
   }
 
@@ -71,6 +89,7 @@ function toPhoto(doc) {
     caption: doc.caption || "",
     poem: doc.poem || "",
     collection: doc.collection || DEFAULT_COLLECTION,
+    featured: Boolean(doc.featured),
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
     order: typeof doc.order === "number" ? doc.order : 0,
@@ -89,6 +108,7 @@ function buildSeedPhotoDoc(photo, index) {
     caption: sanitizeText(photo.caption, "", 600),
     poem: sanitizeText(photo.poem, "", 600),
     collection: sanitizeCollection(photo.collection),
+    featured: sanitizeBoolean(photo.featured, false),
     createdAt,
     updatedAt: createdAt,
     order: index,
@@ -109,6 +129,7 @@ async function ensurePhotoStoreReady() {
       await collection.createIndex({ createdAt: -1 }, { name: "createdAt_desc" });
       await collection.createIndex({ order: 1 }, { name: "order_asc" });
       await collection.createIndex({ collection: 1, createdAt: -1 }, { name: "collection_createdAt" });
+      await collection.createIndex({ featured: -1, order: 1 }, { name: "featured_order" });
 
       const seedOperations = samplePhotos.map((photo, index) => {
         const seedDoc = buildSeedPhotoDoc(photo, index);
@@ -182,6 +203,8 @@ export async function listPhotos({
       ? { createdAt: 1 }
       : normalizedSort === "manual"
         ? { order: 1, createdAt: -1 }
+        : normalizedSort === "curated"
+          ? { featured: -1, order: 1, createdAt: -1 }
         : { createdAt: -1 };
 
   const [items, total] = await Promise.all([
@@ -234,6 +257,7 @@ export async function createPhoto(input) {
     caption: sanitizeText(input.caption, "", 600),
     poem: sanitizeText(input.poem, "", 600),
     collection: sanitizeCollection(input.collection),
+    featured: sanitizeBoolean(input.featured, false),
     createdAt: now,
     updatedAt: now,
     order: nextOrder,
@@ -301,6 +325,10 @@ export async function updatePhotoById(photoId, updates) {
 
   if (updates.collection !== undefined) {
     patch.collection = sanitizeCollection(updates.collection);
+  }
+
+  if (updates.featured !== undefined) {
+    patch.featured = sanitizeBoolean(updates.featured, false);
   }
 
   if (Object.keys(patch).length === 0) {

@@ -8,6 +8,7 @@ const defaultUploadForm = {
   caption: "",
   poem: "",
   collection: "City Life",
+  featured: false,
 };
 
 const baseCollections = [
@@ -32,6 +33,7 @@ function toDraft(photo) {
     caption: photo.caption || "",
     poem: photo.poem || "",
     collection: photo.collection || "City Life",
+    featured: Boolean(photo.featured),
   };
 }
 
@@ -129,8 +131,11 @@ export default function AdminDashboard() {
   }, [loadDashboardData]);
 
   const handleUploadChange = (event) => {
-    const { name, value } = event.target;
-    setUploadForm((current) => ({ ...current, [name]: value }));
+    const { name, value, type, checked } = event.target;
+    setUploadForm((current) => ({
+      ...current,
+      [name]: type === "checkbox" ? checked : value,
+    }));
   };
 
   const handleUploadSubmit = async (event) => {
@@ -200,6 +205,7 @@ export default function AdminDashboard() {
           caption: uploadForm.caption,
           poem: uploadForm.poem,
           collection: uploadForm.collection,
+          featured: uploadForm.featured,
         }),
       }).then(parseJsonResponse);
 
@@ -243,6 +249,7 @@ export default function AdminDashboard() {
         caption: draft.caption,
         poem: draft.poem,
         collection: draft.collection,
+        featured: Boolean(draft.featured),
       };
 
       const result = await fetch(`/api/photos/${photoId}`, {
@@ -479,6 +486,18 @@ export default function AdminDashboard() {
             </select>
           </label>
 
+          <label className="flex items-center gap-3 text-xs tracking-[0.12em] text-foreground/80 uppercase">
+            <input
+              type="checkbox"
+              name="featured"
+              checked={Boolean(uploadForm.featured)}
+              onChange={handleUploadChange}
+              className="h-4 w-4 accent-foreground"
+              disabled={isUploading}
+            />
+            Feature On Homepage
+          </label>
+
           <label className="text-xs tracking-[0.14em] text-foreground/80 uppercase md:col-span-2">
             Caption
             <textarea
@@ -666,6 +685,19 @@ export default function AdminDashboard() {
                           </option>
                         ))}
                       </select>
+                    </label>
+
+                    <label className="flex items-center gap-2 text-[10px] tracking-[0.12em] text-muted uppercase">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(draft.featured)}
+                        onChange={(event) =>
+                          handleDraftChange(photo.photoId, "featured", event.target.checked)
+                        }
+                        className="h-4 w-4 accent-foreground"
+                        disabled={isSaving || isDeleting}
+                      />
+                      Featured
                     </label>
 
                     <label className="text-[10px] tracking-[0.12em] text-muted uppercase md:col-span-2">

@@ -72,6 +72,7 @@ export async function PATCH(request, { params }) {
       caption: body.caption,
       poem: body.poem,
       collection: body.collection,
+      featured: body.featured,
     });
 
     if (result.error) {

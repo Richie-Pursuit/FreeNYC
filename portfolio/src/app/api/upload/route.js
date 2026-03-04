@@ -66,6 +66,7 @@ export async function GET() {
       caption: "optional",
       poem: "optional",
       collection: "optional",
+      featured: "optional boolean",
     },
     message:
       "This endpoint stores metadata after Cloudinary upload. Use /api/upload/signature to generate a signed upload request.",
@@ -111,6 +112,7 @@ export async function POST(request) {
       caption: sanitizeText(body.caption, 600),
       poem: sanitizeText(body.poem, 600),
       collection: sanitizeText(body.collection, 80),
+      featured: body.featured === true,
     });
 
     if (result.error) {

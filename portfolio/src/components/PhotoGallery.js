@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import PhotoGrid from "@/components/PhotoGrid";
 import LightboxViewer from "@/components/LightboxViewer";
 
@@ -11,6 +11,30 @@ function toPositiveInt(value, fallback) {
   }
 
   return parsed;
+}
+
+const MOBILE_MEDIA_QUERY = "(max-width: 640px)";
+
+function subscribeToMobileQuery(callback) {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  const mediaQuery = window.matchMedia(MOBILE_MEDIA_QUERY);
+  const handleChange = () => callback();
+  mediaQuery.addEventListener("change", handleChange);
+
+  return () => {
+    mediaQuery.removeEventListener("change", handleChange);
+  };
+}
+
+function getMobileSnapshot() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.matchMedia(MOBILE_MEDIA_QUERY).matches;
 }
 
 export default function PhotoGallery({
@@ -26,15 +50,18 @@ export default function PhotoGallery({
 }) {
   const [activeCollection, setActiveCollection] = useState("All");
   const [activeIndex, setActiveIndex] = useState(null);
-  const [isMobile, setIsMobile] = useState(() => {
-    if (typeof window === "undefined") {
-      return false;
-    }
-
-    return window.matchMedia("(max-width: 640px)").matches;
-  });
   const [extraVisibleCount, setExtraVisibleCount] = useState(0);
-  const safePhotos = useMemo(() => (Array.isArray(photos) ? photos : []), [photos]);
+  const isMobile = useSyncExternalStore(
+    subscribeToMobileQuery,
+    getMobileSnapshot,
+    () => false,
+  );
+  const safePhotos = useMemo(() => {
+    const incoming = Array.isArray(photos) ? photos : [];
+    return incoming.filter(
+      (item) => typeof item?.imageUrl === "string" && item.imageUrl.trim(),
+    );
+  }, [photos]);
 
   const collections = useMemo(() => {
     return ["All", ...new Set(safePhotos.map((photo) => photo.collection).filter(Boolean))];
@@ -81,20 +108,16 @@ export default function PhotoGallery({
 
     setActiveIndex(index);
   };
-  const handleClose = () => setActiveIndex(null);
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
+  const handleSelect = (index) => {
+    if (!Number.isInteger(index) || index < 0 || index >= displayedPhotos.length) {
       return;
     }
 
-    const mediaQuery = window.matchMedia("(max-width: 640px)");
-    const handleMediaChange = (event) => setIsMobile(event.matches);
+    setActiveIndex(index);
+  };
 
-    mediaQuery.addEventListener("change", handleMediaChange);
-
-    return () => mediaQuery.removeEventListener("change", handleMediaChange);
-  }, []);
+  const handleClose = () => setActiveIndex(null);
 
   const handlePrevious = () => {
     setActiveIndex((current) => {
@@ -171,7 +194,11 @@ export default function PhotoGallery({
       ) : null}
 
       <LightboxViewer
+        isOpen={activeIndex !== null}
         photo={activePhoto}
+        photos={displayedPhotos}
+        activeIndex={activeIndex}
+        onSelect={handleSelect}
         onClose={handleClose}
         onPrevious={handlePrevious}
         onNext={handleNext}

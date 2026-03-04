@@ -1,5 +1,8 @@
 import Image from "next/image";
 
+const BLUR_DATA_URL =
+  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+
 function getPhotoAltText(photo) {
   if (typeof photo?.alt === "string" && photo.alt.trim()) {
     return photo.alt.trim();
@@ -25,6 +28,7 @@ export default function PhotoCard({
   onOpen,
   layoutClass,
   priority = false,
+  index = 0,
 }) {
   const altText = getPhotoAltText(photo);
   const imageUrl =
@@ -38,7 +42,10 @@ export default function PhotoCard({
   }
 
   return (
-    <article className={`relative overflow-hidden ${layoutClass}`}>
+    <article
+      className={`relative overflow-hidden opacity-100 motion-safe:opacity-0 motion-safe:animate-[cardReveal_720ms_cubic-bezier(0.22,1,0.36,1)_forwards] ${layoutClass}`}
+      style={{ animationDelay: `${Math.min(index, 12) * 65}ms` }}
+    >
       <button
         type="button"
         onClick={safeOnOpen}
@@ -52,6 +59,8 @@ export default function PhotoCard({
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           className="object-cover transition duration-700 group-hover:scale-[1.02] group-active:scale-[1.01]"
           priority={priority}
+          placeholder="blur"
+          blurDataURL={BLUR_DATA_URL}
         />
 
         <div className="absolute inset-0 bg-gradient-to-t from-black/72 via-black/24 to-transparent opacity-100 transition-opacity duration-500 sm:opacity-0 sm:group-hover:opacity-100" />

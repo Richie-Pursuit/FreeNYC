@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 const ATTEMPT_STORE_KEY = "__admin_gate_attempts__";
 const MAX_ATTEMPTS = 8;
 const WINDOW_MS = 10 * 60 * 1000;
+const MAX_STORE_ENTRIES = 10000;
 
 function getAttemptStore() {
   if (!globalThis[ATTEMPT_STORE_KEY]) {
@@ -46,6 +47,7 @@ function getRecord(clientId, now) {
 }
 
 function isRateLimited(clientId, now) {
+  pruneAttemptStore(now);
   const record = getRecord(clientId, now);
   return record.count >= MAX_ATTEMPTS;
 }
@@ -58,6 +60,34 @@ function markFailedAttempt(clientId, now) {
 function clearAttempts(clientId) {
   const store = getAttemptStore();
   store.delete(clientId);
+}
+
+function pruneAttemptStore(now) {
+  const store = getAttemptStore();
+  if (store.size === 0) {
+    return;
+  }
+
+  for (const [key, value] of store.entries()) {
+    if (!value || value.resetAt <= now) {
+      store.delete(key);
+    }
+  }
+
+  if (store.size <= MAX_STORE_ENTRIES) {
+    return;
+  }
+
+  const entries = [...store.entries()].sort(
+    (a, b) => (a[1]?.resetAt || 0) - (b[1]?.resetAt || 0),
+  );
+  const overflowCount = store.size - MAX_STORE_ENTRIES;
+  for (let index = 0; index < overflowCount; index += 1) {
+    const key = entries[index]?.[0];
+    if (key) {
+      store.delete(key);
+    }
+  }
 }
 
 async function delay(ms) {

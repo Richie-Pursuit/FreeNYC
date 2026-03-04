@@ -9,7 +9,7 @@ export default function AboutPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="mx-auto w-full max-w-[1400px] px-4 py-10 sm:px-8 sm:py-12 lg:px-12 lg:py-16">
+      <main className="motion-page-enter mx-auto w-full max-w-[1400px] px-4 py-10 sm:px-8 sm:py-12 lg:px-12 lg:py-16">
         <div className="grid gap-8 lg:grid-cols-[1.05fr_1.4fr] lg:gap-14">
           <aside className="lg:sticky lg:top-24 lg:self-start">
             <figure className="overflow-hidden border border-foreground/20 bg-zinc-100 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">

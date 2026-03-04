@@ -31,7 +31,7 @@ function sanitizeQueryText(value, maxLength = 120) {
 }
 
 function normalizeSort(value) {
-  if (value === "oldest" || value === "manual") {
+  if (value === "oldest" || value === "manual" || value === "curated") {
     return value;
   }
 

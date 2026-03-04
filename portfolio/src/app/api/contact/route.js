@@ -4,6 +4,7 @@ import { getMongoDatabase, isMongoConfigured } from "@/lib/mongodb";
 const rateLimitState = new Map();
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 6;
+const RATE_LIMIT_MAX_ENTRIES = 10000;
 
 function getClientIp(request) {
   const forwardedFor = request.headers.get("x-forwarded-for");
@@ -33,6 +34,7 @@ function escapeHtml(value) {
 
 function isRateLimited(ip) {
   const now = Date.now();
+  pruneRateLimitState(now);
   const entry = rateLimitState.get(ip);
 
   if (!entry || now - entry.startedAt > RATE_LIMIT_WINDOW_MS) {
@@ -43,6 +45,33 @@ function isRateLimited(ip) {
   entry.count += 1;
   rateLimitState.set(ip, entry);
   return entry.count > RATE_LIMIT_MAX_REQUESTS;
+}
+
+function pruneRateLimitState(now) {
+  if (rateLimitState.size === 0) {
+    return;
+  }
+
+  for (const [key, value] of rateLimitState.entries()) {
+    if (!value || now - value.startedAt > RATE_LIMIT_WINDOW_MS) {
+      rateLimitState.delete(key);
+    }
+  }
+
+  if (rateLimitState.size <= RATE_LIMIT_MAX_ENTRIES) {
+    return;
+  }
+
+  const entries = [...rateLimitState.entries()].sort(
+    (a, b) => (a[1]?.startedAt || 0) - (b[1]?.startedAt || 0),
+  );
+  const overflowCount = rateLimitState.size - RATE_LIMIT_MAX_ENTRIES;
+  for (let index = 0; index < overflowCount; index += 1) {
+    const key = entries[index]?.[0];
+    if (key) {
+      rateLimitState.delete(key);
+    }
+  }
 }
 
 async function parseResendResponse(response) {

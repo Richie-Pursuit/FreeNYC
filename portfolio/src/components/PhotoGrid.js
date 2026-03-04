@@ -33,7 +33,9 @@ export default function PhotoGrid({
   eagerCount = 0,
 }) {
   const pattern = patternByLayout[layout] || cinematicPattern;
-  const safePhotos = Array.isArray(photos) ? photos : [];
+  const safePhotos = (Array.isArray(photos) ? photos : []).filter(
+    (item) => typeof item?.imageUrl === "string" && item.imageUrl.trim(),
+  );
   const safeOnOpen = typeof onOpen === "function" ? onOpen : () => {};
 
   if (safePhotos.length === 0) {
@@ -59,6 +61,7 @@ export default function PhotoGrid({
           onOpen={() => safeOnOpen(index)}
           layoutClass={pattern[index % pattern.length]}
           priority={index < eagerCount || Boolean(photo.featured)}
+          index={index}
         />
       ))}
     </section>
