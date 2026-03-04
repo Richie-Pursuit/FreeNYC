@@ -5,6 +5,7 @@ import { useState } from "react";
 const defaultForm = {
   name: "",
   email: "",
+  subject: "",
   message: "",
   website: "",
 };
@@ -41,6 +42,7 @@ export default function ContactForm() {
         body: JSON.stringify({
           name: form.name,
           email: form.email,
+          subject: form.subject,
           message: form.message,
           website: form.website,
         }),
@@ -98,6 +100,22 @@ export default function ContactForm() {
           placeholder="you@example.com"
           required
           maxLength={160}
+          disabled={isSending}
+        />
+      </label>
+
+      <label className="block text-xs tracking-[0.16em] text-foreground/80 uppercase">
+        Subject
+        <input
+          type="text"
+          name="subject"
+          value={form.subject}
+          onChange={handleChange}
+          className="mt-2 w-full border border-foreground/30 bg-white px-4 py-3 text-sm text-foreground placeholder:text-foreground/45 outline-none focus:border-foreground focus:ring-2 focus:ring-foreground/15"
+          placeholder="Contact regarding buying your book"
+          required
+          minLength={3}
+          maxLength={180}
           disabled={isSending}
         />
       </label>

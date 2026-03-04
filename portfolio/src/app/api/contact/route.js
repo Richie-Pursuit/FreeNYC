@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getMongoDatabase, isMongoConfigured } from "@/lib/mongodb";
 
 const rateLimitState = new Map();
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
@@ -67,6 +68,7 @@ export async function POST(request) {
 
   const name = normalizeString(payload?.name);
   const email = normalizeString(payload?.email);
+  const subject = normalizeString(payload?.subject);
   const message = normalizeString(payload?.message);
   const website = normalizeString(payload?.website);
 
@@ -82,11 +84,36 @@ export async function POST(request) {
     return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
   }
 
+  if (subject.length < 3 || subject.length > 180) {
+    return NextResponse.json({ error: "Please enter a valid subject." }, { status: 400 });
+  }
+
   if (message.length < 10 || message.length > 3000) {
     return NextResponse.json(
       { error: "Message must be between 10 and 3000 characters." },
       { status: 400 },
     );
+  }
+
+  let savedSubmissionId = null;
+  if (isMongoConfigured()) {
+    try {
+      const db = await getMongoDatabase();
+      const result = await db.collection("contact_messages").insertOne({
+        name,
+        email,
+        subject,
+        message,
+        ipAddress: ip,
+        userAgent: request.headers.get("user-agent") || "",
+        emailStatus: "pending",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      savedSubmissionId = result.insertedId;
+    } catch {
+      // Do not block outbound email if persistence fails.
+    }
   }
 
   const apiKey = process.env.RESEND_API_KEY;
@@ -106,12 +133,13 @@ export async function POST(request) {
 
   const safeName = escapeHtml(name);
   const safeEmail = escapeHtml(email);
+  const safeSubject = escapeHtml(subject);
   const safeMessage = escapeHtml(message).replace(/\n/g, "<br/>");
 
-  const subject = `New Contact Message - ${name}`;
+  const emailSubject = `New Contact Message: ${subject}`;
 
   try {
-    await fetch("https://api.resend.com/emails", {
+    const resendResult = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -121,19 +149,53 @@ export async function POST(request) {
         from: fromEmail,
         to: [toEmail],
         reply_to: replyTo,
-        subject,
-        text: `Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,
+        subject: emailSubject,
+        text: `Name: ${name}\nEmail: ${email}\nSubject: ${subject}\n\nMessage:\n${message}`,
         html: `
           <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111;">
             <h2 style="margin: 0 0 12px;">New Contact Form Message</h2>
             <p><strong>Name:</strong> ${safeName}</p>
             <p><strong>Email:</strong> ${safeEmail}</p>
+            <p><strong>Subject:</strong> ${safeSubject}</p>
             <p><strong>Message:</strong><br/>${safeMessage}</p>
           </div>
         `,
       }),
     }).then(parseResendResponse);
+
+    if (savedSubmissionId && isMongoConfigured()) {
+      const db = await getMongoDatabase();
+      await db.collection("contact_messages").updateOne(
+        { _id: savedSubmissionId },
+        {
+          $set: {
+            emailStatus: "sent",
+            providerMessageId: resendResult?.id || "",
+            deliveredAt: new Date(),
+            updatedAt: new Date(),
+          },
+        },
+      );
+    }
   } catch (error) {
+    if (savedSubmissionId && isMongoConfigured()) {
+      try {
+        const db = await getMongoDatabase();
+        await db.collection("contact_messages").updateOne(
+          { _id: savedSubmissionId },
+          {
+            $set: {
+              emailStatus: "failed",
+              emailError: error.message || "Unable to send email right now.",
+              updatedAt: new Date(),
+            },
+          },
+        );
+      } catch {
+        // Ignore logging failures.
+      }
+    }
+
     return NextResponse.json(
       { error: error.message || "Unable to send email right now." },
       { status: 502 },

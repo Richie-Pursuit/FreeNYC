@@ -5,6 +5,7 @@ Next.js App Router portfolio site for Leica-style street photography.
 ## Contact Email Setup
 
 Contact form submissions are sent by the `/api/contact` route using the Resend API.
+Submissions are also saved in MongoDB (`contact_messages` collection) when Mongo is configured.
 
 Required environment variables:
 
