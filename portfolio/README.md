@@ -1,3 +1,25 @@
+## Free NYC Portfolio
+
+Next.js App Router portfolio site for Leica-style street photography.
+
+## Contact Email Setup
+
+Contact form submissions are sent by the `/api/contact` route using the Resend API.
+
+Required environment variables:
+
+```bash
+RESEND_API_KEY=your_resend_api_key
+CONTACT_TO_EMAIL=richiecarrasco@pursuit.org
+CONTACT_FROM_EMAIL="Free NYC <onboarding@resend.dev>"
+```
+
+Notes:
+- `CONTACT_TO_EMAIL` is the inbox that receives contact submissions.
+- For production sending, use a verified `CONTACT_FROM_EMAIL` domain in Resend.
+
+## Default Next.js Notes
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
 ## Getting Started
