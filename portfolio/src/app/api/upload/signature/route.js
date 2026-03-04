@@ -47,6 +47,10 @@ export async function POST(request) {
   const timestamp = Math.floor(Date.now() / 1000);
   const folder = sanitizeFolder(body.folder) || config.uploadFolder;
 
+  if (!folder) {
+    return badRequest("Upload folder is required.");
+  }
+
   const paramsToSign = {
     folder,
     timestamp,

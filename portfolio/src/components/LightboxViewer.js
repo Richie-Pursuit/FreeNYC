@@ -53,27 +53,33 @@ export default function LightboxViewer({
   onNext,
 }) {
   useEffect(() => {
-    if (!photo) {
+    if (!photo?.imageUrl) {
       return undefined;
     }
 
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
-        onClose();
+        if (typeof onClose === "function") {
+          onClose();
+        }
       }
       if (event.key === "ArrowLeft") {
-        onPrevious();
+        if (typeof onPrevious === "function") {
+          onPrevious();
+        }
       }
       if (event.key === "ArrowRight") {
-        onNext();
+        if (typeof onNext === "function") {
+          onNext();
+        }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [photo, onClose, onPrevious, onNext]);
+  }, [photo?.imageUrl, onClose, onPrevious, onNext]);
 
-  if (!photo) {
+  if (!photo?.imageUrl) {
     return null;
   }
 
@@ -83,7 +89,11 @@ export default function LightboxViewer({
     <div className="fixed inset-0 z-50 bg-black/95 text-white">
       <button
         type="button"
-        onClick={onClose}
+        onClick={() => {
+          if (typeof onClose === "function") {
+            onClose();
+          }
+        }}
         className="absolute top-4 right-3 z-10 rounded-full border border-white/20 bg-black/40 px-3 py-2 text-[10px] tracking-[0.16em] text-white/85 uppercase transition-colors hover:text-white sm:top-6 sm:right-5 sm:text-xs"
       >
         Close (ESC)
@@ -93,7 +103,11 @@ export default function LightboxViewer({
         <div className="relative min-h-0 flex-1">
           <button
             type="button"
-            onClick={onPrevious}
+            onClick={() => {
+              if (typeof onPrevious === "function") {
+                onPrevious();
+              }
+            }}
             aria-label="Previous photo"
             className="group absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/25 bg-black/35 p-2.5 text-white/85 transition-all hover:border-white/55 hover:bg-black/60 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/40 sm:left-5 sm:p-3"
           >
@@ -102,7 +116,11 @@ export default function LightboxViewer({
 
           <button
             type="button"
-            onClick={onNext}
+            onClick={() => {
+              if (typeof onNext === "function") {
+                onNext();
+              }
+            }}
             aria-label="Next photo"
             className="group absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/25 bg-black/35 p-2.5 text-white/85 transition-all hover:border-white/55 hover:bg-black/60 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/40 sm:right-5 sm:p-3"
           >

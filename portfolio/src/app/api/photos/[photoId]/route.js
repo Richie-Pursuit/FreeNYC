@@ -30,6 +30,10 @@ async function parseJson(request) {
 export async function GET(_request, { params }) {
   try {
     const { photoId } = await params;
+    if (typeof photoId !== "string" || !photoId.trim()) {
+      return badRequest("photoId is required.");
+    }
+
     const photo = await getPhotoById(photoId);
 
     if (!photo) {
@@ -50,6 +54,10 @@ export async function PATCH(request, { params }) {
     }
 
     const { photoId } = await params;
+    if (typeof photoId !== "string" || !photoId.trim()) {
+      return badRequest("photoId is required.");
+    }
+
     const body = await parseJson(request);
 
     if (!body) {
@@ -88,6 +96,10 @@ export async function DELETE(_request, { params }) {
     }
 
     const { photoId } = await params;
+    if (typeof photoId !== "string" || !photoId.trim()) {
+      return badRequest("photoId is required.");
+    }
+
     const result = await deletePhotoById(photoId);
 
     if (result.error) {

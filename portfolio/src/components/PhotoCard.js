@@ -27,17 +27,26 @@ export default function PhotoCard({
   priority = false,
 }) {
   const altText = getPhotoAltText(photo);
+  const imageUrl =
+    typeof photo?.imageUrl === "string" && photo.imageUrl.trim()
+      ? photo.imageUrl.trim()
+      : "";
+  const safeOnOpen = typeof onOpen === "function" ? onOpen : () => {};
+
+  if (!imageUrl) {
+    return null;
+  }
 
   return (
     <article className={`relative overflow-hidden ${layoutClass}`}>
       <button
         type="button"
-        onClick={onOpen}
+        onClick={safeOnOpen}
         className="group relative block h-full w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
         aria-label={`Open ${altText}`}
       >
         <Image
-          src={photo.imageUrl}
+          src={imageUrl}
           alt={altText}
           fill
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"

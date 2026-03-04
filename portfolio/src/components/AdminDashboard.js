@@ -140,6 +140,16 @@ export default function AdminDashboard() {
       setUploadMessage("Choose a photo file before uploading.");
       return;
     }
+    if (!file.type.startsWith("image/")) {
+      setUploadStatus("error");
+      setUploadMessage("Only image files can be uploaded.");
+      return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      setUploadStatus("error");
+      setUploadMessage("File is too large. Maximum allowed size is 25MB.");
+      return;
+    }
 
     setUploadStatus("uploading");
     setUploadMessage("Uploading to Cloudinary...");
@@ -152,6 +162,14 @@ export default function AdminDashboard() {
           folder: `freenyc/${slugify(uploadForm.collection || "city-life")}`,
         }),
       }).then(parseJsonResponse);
+      if (
+        !signaturePayload?.apiKey ||
+        !signaturePayload?.timestamp ||
+        !signaturePayload?.signature ||
+        !signaturePayload?.uploadUrl
+      ) {
+        throw new Error("Upload signature response is incomplete.");
+      }
 
       const cloudinaryForm = new FormData();
       cloudinaryForm.set("file", file);
@@ -166,6 +184,9 @@ export default function AdminDashboard() {
         method: "POST",
         body: cloudinaryForm,
       }).then(parseJsonResponse);
+      if (!cloudinaryResult?.secure_url) {
+        throw new Error("Cloudinary upload did not return a secure URL.");
+      }
 
       setUploadMessage("Saving metadata...");
 

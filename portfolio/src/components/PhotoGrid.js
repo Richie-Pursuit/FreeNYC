@@ -33,17 +33,30 @@ export default function PhotoGrid({
   eagerCount = 0,
 }) {
   const pattern = patternByLayout[layout] || cinematicPattern;
+  const safePhotos = Array.isArray(photos) ? photos : [];
+  const safeOnOpen = typeof onOpen === "function" ? onOpen : () => {};
+
+  if (safePhotos.length === 0) {
+    return (
+      <section
+        aria-label="Street photography highlights"
+        className="border border-line bg-white/70 px-5 py-10 text-center text-sm text-muted"
+      >
+        No photos available yet.
+      </section>
+    );
+  }
 
   return (
     <section
       aria-label="Street photography highlights"
       className="grid auto-rows-[1fr] grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
     >
-      {photos.map((photo, index) => (
+      {safePhotos.map((photo, index) => (
         <PhotoCard
-          key={photo.photoId}
+          key={photo.photoId || `photo-${index}`}
           photo={photo}
-          onOpen={() => onOpen(index)}
+          onOpen={() => safeOnOpen(index)}
           layoutClass={pattern[index % pattern.length]}
           priority={index < eagerCount || Boolean(photo.featured)}
         />

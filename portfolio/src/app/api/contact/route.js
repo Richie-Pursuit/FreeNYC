@@ -18,6 +18,10 @@ function normalizeString(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
 function escapeHtml(value) {
   return value
     .replace(/&/g, "&amp;")
@@ -51,6 +55,14 @@ async function parseResendResponse(response) {
 }
 
 export async function POST(request) {
+  const contentType = request.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    return NextResponse.json(
+      { error: "Content-Type must be application/json." },
+      { status: 415 },
+    );
+  }
+
   const ip = getClientIp(request);
   if (isRateLimited(ip)) {
     return NextResponse.json(
@@ -81,7 +93,7 @@ export async function POST(request) {
     return NextResponse.json({ error: "Please enter a valid name." }, { status: 400 });
   }
 
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 160) {
+  if (!isValidEmail(email) || email.length > 160) {
     return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
   }
 
@@ -140,6 +152,13 @@ export async function POST(request) {
     "richiecarrasco@pursuit.org";
   const fromEmail = process.env.CONTACT_FROM_EMAIL || "Free NYC <onboarding@resend.dev>";
   const replyTo = email;
+
+  if (!isValidEmail(toEmail)) {
+    return NextResponse.json(
+      { error: "CONTACT_TO_EMAIL must be a valid email address." },
+      { status: 500 },
+    );
+  }
 
   const safeName = escapeHtml(name);
   const safeEmail = escapeHtml(email);

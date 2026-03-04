@@ -21,7 +21,16 @@ export default async function HomePage() {
 
       <main className="px-4 pb-14 sm:px-8 sm:pb-16 lg:px-12">
         <section className="mx-auto w-full max-w-[1800px] py-6 sm:py-8">
-          <PhotoGallery photos={photos} layout="cinematic" eagerCount={3} />
+          <PhotoGallery
+            photos={photos}
+            layout="cinematic"
+            eagerCount={3}
+            enableLoadMore
+            initialMobileCount={8}
+            loadMoreMobileCount={8}
+            initialDesktopCount={12}
+            loadMoreDesktopCount={12}
+          />
         </section>
       </main>
     </div>

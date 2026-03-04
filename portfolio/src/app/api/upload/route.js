@@ -29,6 +29,23 @@ async function parseJson(request) {
   }
 }
 
+function sanitizeText(value, maxLength = 1200) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value.trim().slice(0, maxLength);
+}
+
+function isValidHttpUrl(value) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export async function GET() {
   const cloudinaryPublic = getCloudinaryPublicConfig();
   const cloudinaryServer = getCloudinaryServerConfig();
@@ -67,14 +84,17 @@ export async function POST(request) {
       return badRequest("Request body must be valid JSON.");
     }
 
-    const imageUrl = body.secureUrl || body.imageUrl;
+    const imageUrl = sanitizeText(body.secureUrl || body.imageUrl);
     if (!imageUrl) {
       return badRequest("secureUrl (or imageUrl) is required.");
+    }
+    if (!isValidHttpUrl(imageUrl)) {
+      return badRequest("secureUrl (or imageUrl) must be a valid http(s) URL.");
     }
 
     const cloudinary = getCloudinaryServerConfig();
     const computedThumbnail =
-      body.thumbnailUrl ||
+      sanitizeText(body.thumbnailUrl) ||
       buildCloudinaryThumbnailUrl({
         cloudName: cloudinary.cloudName,
         publicId: body.publicId,
@@ -86,11 +106,11 @@ export async function POST(request) {
     const result = await createPhoto({
       imageUrl,
       thumbnailUrl: computedThumbnail,
-      publicId: body.publicId,
-      title: body.title,
-      caption: body.caption,
-      poem: body.poem,
-      collection: body.collection,
+      publicId: sanitizeText(body.publicId, 180),
+      title: sanitizeText(body.title, 140),
+      caption: sanitizeText(body.caption, 600),
+      poem: sanitizeText(body.poem, 600),
+      collection: sanitizeText(body.collection, 80),
     });
 
     if (result.error) {

@@ -18,6 +18,26 @@ function toInt(value, fallback) {
   return parsed;
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function sanitizeQueryText(value, maxLength = 120) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value.trim().slice(0, maxLength);
+}
+
+function normalizeSort(value) {
+  if (value === "oldest" || value === "manual") {
+    return value;
+  }
+
+  return "newest";
+}
+
 function badRequest(message) {
   return NextResponse.json({ error: message }, { status: 400 });
 }
@@ -40,11 +60,11 @@ async function parseJson(request) {
 export async function GET(request) {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const collection = searchParams.get("collection") || "All";
-    const q = searchParams.get("q") || "";
-    const limit = toInt(searchParams.get("limit"), 60);
-    const offset = toInt(searchParams.get("offset"), 0);
-    const sort = searchParams.get("sort") || "newest";
+    const collection = sanitizeQueryText(searchParams.get("collection"), 80) || "All";
+    const q = sanitizeQueryText(searchParams.get("q"), 120);
+    const limit = clamp(toInt(searchParams.get("limit"), 60), 1, 300);
+    const offset = clamp(toInt(searchParams.get("offset"), 0), 0, 10000);
+    const sort = normalizeSort(searchParams.get("sort") || "newest");
 
     const [result, collections] = await Promise.all([
       listPhotos({ collection, q, limit, offset, sort }),
