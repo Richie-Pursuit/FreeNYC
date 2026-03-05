@@ -7,18 +7,12 @@ import {
 } from "@/lib/cloudinary";
 import { requireApiAuth } from "@/lib/auth";
 import { createPhoto } from "@/lib/photoStore";
+import { internalApiError } from "@/lib/api-errors";
 
 export const dynamic = "force-dynamic";
 
 function badRequest(message) {
   return NextResponse.json({ error: message }, { status: 400 });
-}
-
-function internalError(error) {
-  return NextResponse.json(
-    { error: error?.message || "Internal server error." },
-    { status: 500 },
-  );
 }
 
 async function parseJson(request) {
@@ -127,6 +121,6 @@ export async function POST(request) {
       { status: 201 },
     );
   } catch (error) {
-    return internalError(error);
+    return internalApiError(error);
   }
 }

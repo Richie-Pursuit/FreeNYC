@@ -572,6 +572,10 @@ export default function AdminDashboard() {
 
         {loadingPhotos ? (
           <p className="mt-4 text-sm text-muted">Loading photos...</p>
+        ) : manageStatus === "error" && photos.length === 0 ? (
+          <p className="mt-4 text-sm text-red-700">
+            Unable to load photos right now. Check database connectivity and retry.
+          </p>
         ) : photos.length === 0 ? (
           <p className="mt-4 text-sm text-muted">No photos yet.</p>
         ) : (

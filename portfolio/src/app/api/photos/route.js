@@ -6,6 +6,7 @@ import {
   reorderPhotos,
 } from "@/lib/photoStore";
 import { requireApiAuth } from "@/lib/auth";
+import { internalApiError } from "@/lib/api-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -40,13 +41,6 @@ function normalizeSort(value) {
 
 function badRequest(message) {
   return NextResponse.json({ error: message }, { status: 400 });
-}
-
-function internalError(error) {
-  return NextResponse.json(
-    { error: error?.message || "Internal server error." },
-    { status: 500 },
-  );
 }
 
 async function parseJson(request) {
@@ -87,7 +81,7 @@ export async function GET(request) {
       },
     });
   } catch (error) {
-    return internalError(error);
+    return internalApiError(error);
   }
 }
 
@@ -116,7 +110,7 @@ export async function POST(request) {
       { status: 201 },
     );
   } catch (error) {
-    return internalError(error);
+    return internalApiError(error);
   }
 }
 
@@ -146,6 +140,6 @@ export async function PATCH(request) {
       message: "Photo order updated.",
     });
   } catch (error) {
-    return internalError(error);
+    return internalApiError(error);
   }
 }

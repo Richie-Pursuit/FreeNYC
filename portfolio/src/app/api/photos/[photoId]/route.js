@@ -5,18 +5,12 @@ import {
   updatePhotoById,
 } from "@/lib/photoStore";
 import { requireApiAuth } from "@/lib/auth";
+import { internalApiError } from "@/lib/api-errors";
 
 export const dynamic = "force-dynamic";
 
 function badRequest(message) {
   return NextResponse.json({ error: message }, { status: 400 });
-}
-
-function internalError(error) {
-  return NextResponse.json(
-    { error: error?.message || "Internal server error." },
-    { status: 500 },
-  );
 }
 
 async function parseJson(request) {
@@ -42,7 +36,7 @@ export async function GET(_request, { params }) {
 
     return NextResponse.json({ photo });
   } catch (error) {
-    return internalError(error);
+    return internalApiError(error);
   }
 }
 
@@ -85,7 +79,7 @@ export async function PATCH(request, { params }) {
       message: "Photo updated.",
     });
   } catch (error) {
-    return internalError(error);
+    return internalApiError(error);
   }
 }
 
@@ -114,6 +108,6 @@ export async function DELETE(_request, { params }) {
       message: "Photo deleted.",
     });
   } catch (error) {
-    return internalError(error);
+    return internalApiError(error);
   }
 }

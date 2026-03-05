@@ -146,10 +146,18 @@ async function ensurePhotoStoreReady() {
       if (seedOperations.length > 0) {
         await collection.bulkWrite(seedOperations, { ordered: false });
       }
-    })();
+    })().catch((error) => {
+      globalThis[READY_PROMISE_KEY] = null;
+      throw error;
+    });
   }
 
-  await globalThis[READY_PROMISE_KEY];
+  try {
+    await globalThis[READY_PROMISE_KEY];
+  } catch (error) {
+    globalThis[READY_PROMISE_KEY] = null;
+    throw error;
+  }
 }
 
 async function getNextOrder(collection) {

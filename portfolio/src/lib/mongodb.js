@@ -30,12 +30,27 @@ export async function getMongoClient() {
       serverApi: {
         version: ServerApiVersion.v1,
       },
+      connectTimeoutMS: 10_000,
+      serverSelectionTimeoutMS: 10_000,
     });
 
-    globalThis[CLIENT_PROMISE_KEY] = client.connect();
+    globalThis[CLIENT_PROMISE_KEY] = client.connect().catch(async (error) => {
+      globalThis[CLIENT_PROMISE_KEY] = null;
+      try {
+        await client.close();
+      } catch {
+        // Ignore close errors during failed connect attempts.
+      }
+      throw error;
+    });
   }
 
-  return globalThis[CLIENT_PROMISE_KEY];
+  try {
+    return await globalThis[CLIENT_PROMISE_KEY];
+  } catch (error) {
+    globalThis[CLIENT_PROMISE_KEY] = null;
+    throw error;
+  }
 }
 
 export async function getMongoDatabase() {
