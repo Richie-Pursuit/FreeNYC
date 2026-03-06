@@ -23,6 +23,72 @@ function getPhotoAltText(photo) {
   return "Street photograph";
 }
 
+function renderInlineFormatting(text, keyPrefix) {
+  if (!text) {
+    return null;
+  }
+
+  const tokenPattern = /(\*\*[^*]+\*\*|\*[^*]+\*)/g;
+  const nodes = [];
+  let cursor = 0;
+  let matchIndex = 0;
+  let match = tokenPattern.exec(text);
+
+  while (match) {
+    const token = match[0];
+    const start = match.index;
+
+    if (start > cursor) {
+      nodes.push(
+        <span key={`${keyPrefix}-plain-${matchIndex}`}>
+          {text.slice(cursor, start)}
+        </span>,
+      );
+    }
+
+    if (token.startsWith("**") && token.endsWith("**")) {
+      const strongText = token.slice(2, -2).trim();
+      if (strongText) {
+        nodes.push(<strong key={`${keyPrefix}-strong-${matchIndex}`}>{strongText}</strong>);
+      }
+    } else if (token.startsWith("*") && token.endsWith("*")) {
+      const emphasisText = token.slice(1, -1).trim();
+      if (emphasisText) {
+        nodes.push(<em key={`${keyPrefix}-em-${matchIndex}`}>{emphasisText}</em>);
+      }
+    }
+
+    cursor = start + token.length;
+    matchIndex += 1;
+    match = tokenPattern.exec(text);
+  }
+
+  if (cursor < text.length) {
+    nodes.push(
+      <span key={`${keyPrefix}-tail`}>
+        {text.slice(cursor)}
+      </span>,
+    );
+  }
+
+  return nodes.length ? nodes : text;
+}
+
+function renderFormattedText(value, keyPrefix) {
+  if (!value) {
+    return null;
+  }
+
+  const lines = value.split("\n");
+
+  return lines.map((line, lineIndex) => (
+    <span key={`${keyPrefix}-line-${lineIndex}`}>
+      {renderInlineFormatting(line, `${keyPrefix}-line-${lineIndex}`)}
+      {lineIndex < lines.length - 1 ? <br /> : null}
+    </span>
+  ));
+}
+
 export default function PhotoCard({
   photo,
   onOpen,
@@ -74,7 +140,7 @@ export default function PhotoCard({
           </p>
           {photo.poem ? (
             <p className="mt-2 max-w-lg text-xs whitespace-pre-line text-white/90 break-words sm:mt-3 sm:text-sm">
-              {photo.poem}
+              {renderFormattedText(photo.poem, `card-poem-${photo.photoId || index}`)}
             </p>
           ) : null}
         </div>

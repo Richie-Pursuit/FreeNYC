@@ -7,6 +7,7 @@ const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
 const CSRF_HEADER_NAME = "x-csrf-token";
 const PAGE_SIZE_OPTIONS = [24, 48, 96];
 const HOMEPAGE_MAX_PHOTOS = 100;
+const HOMEPAGE_COLLECTION_FILTER = "__homepage__";
 const LIBRARY_SORT_OPTIONS = [
   { value: "newest", label: "Newest First" },
   { value: "oldest", label: "Oldest First" },
@@ -96,6 +97,22 @@ function isDraftDirty(photo, draft) {
     toStringValue(photo.collection) !== toStringValue(draft.collection) ||
     Boolean(photo.featured) !== Boolean(draft.featured) ||
     (photo.published !== false) !== Boolean(draft.published)
+  );
+}
+
+function areDraftValuesEqual(a, b) {
+  if (!a || !b) {
+    return false;
+  }
+
+  return (
+    toStringValue(a.title) === toStringValue(b.title) &&
+    toStringValue(a.alt) === toStringValue(b.alt) &&
+    toStringValue(a.caption) === toStringValue(b.caption) &&
+    toStringValue(a.poem) === toStringValue(b.poem) &&
+    toStringValue(a.collection) === toStringValue(b.collection) &&
+    Boolean(a.featured) === Boolean(b.featured) &&
+    Boolean(a.published) === Boolean(b.published)
   );
 }
 
@@ -189,13 +206,137 @@ function PoemToolbar({ onInsert }) {
   );
 }
 
-function SaveIcon() {
+function renderPoemInline(value, keyPrefix = "poem") {
+  const text = typeof value === "string" ? value : "";
+  const pattern = /\*\*([^*]+)\*\*|\*([^*]+)\*/g;
+  const parts = [];
+  let cursor = 0;
+  let match;
+  let index = 0;
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > cursor) {
+      parts.push(
+        <span key={`${keyPrefix}-text-${index}`}>
+          {text.slice(cursor, match.index)}
+        </span>,
+      );
+      index += 1;
+    }
+
+    if (typeof match[1] === "string") {
+      parts.push(
+        <strong key={`${keyPrefix}-strong-${index}`} className="font-semibold">
+          {match[1]}
+        </strong>,
+      );
+    } else if (typeof match[2] === "string") {
+      parts.push(
+        <em key={`${keyPrefix}-italic-${index}`} className="italic">
+          {match[2]}
+        </em>,
+      );
+    }
+    index += 1;
+    cursor = pattern.lastIndex;
+  }
+
+  if (cursor < text.length) {
+    parts.push(
+      <span key={`${keyPrefix}-tail-${index}`}>
+        {text.slice(cursor)}
+      </span>,
+    );
+  }
+
+  return parts.length ? parts : [text];
+}
+
+function PoemLivePreview({ value, emptyText = "Preview will appear here.", className = "" }) {
+  const lines = typeof value === "string" ? value.split("\n") : [];
+  const hasContent = lines.some((line) => line.trim().length > 0);
+
+  return (
+    <div className={`rounded-md border border-line bg-zinc-50/80 px-3 py-2.5 ${className}`}>
+      <p className="text-[10px] tracking-[0.12em] text-muted uppercase">Live Preview</p>
+      <div className="mt-2 space-y-1 text-sm leading-7 text-foreground/90">
+        {hasContent ? (
+          lines.map((line, lineIndex) => (
+            <p key={`preview-line-${lineIndex}`} className="whitespace-pre-wrap">
+              {line.trim().length > 0 ? renderPoemInline(line, `line-${lineIndex}`) : " "}
+            </p>
+          ))
+        ) : (
+          <p className="italic text-muted">{emptyText}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function UndoIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-      <path d="M4 5a1 1 0 0 1 1-1h11l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5Z" />
-      <path d="M8 4v6h8V4" />
-      <path d="M8 20v-6h8v6" />
+      <path d="M8 8H4V4" />
+      <path d="M4 8a8 8 0 1 1-1 4" />
     </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M4 7h16" />
+      <path d="M9 4h6l1 3H8l1-3Z" />
+      <path d="M7 7l1 13h8l1-13" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  );
+}
+
+function ToggleSwitch({
+  label,
+  checked,
+  onChange,
+  disabled = false,
+  description = "",
+  tone = "default",
+}) {
+  const surfaceToneClass =
+    checked && tone === "homepage"
+      ? "border-emerald-200 bg-emerald-50/70"
+      : checked && tone === "published"
+        ? "border-sky-200 bg-sky-50/70"
+        : "border-line bg-white";
+  const trackToneClass =
+    tone === "homepage"
+      ? "peer-checked:bg-emerald-600"
+      : tone === "published"
+        ? "peer-checked:bg-sky-600"
+        : "peer-checked:bg-foreground";
+
+  return (
+    <label className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2.5 ${surfaceToneClass}`}>
+      <div>
+        <p className="text-sm font-semibold text-foreground">{label}</p>
+        {description ? <p className="mt-0.5 text-xs text-muted">{description}</p> : null}
+      </div>
+      <span className="relative inline-flex h-6 w-11 shrink-0">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={onChange}
+          disabled={disabled}
+          className="peer sr-only"
+          aria-label={label}
+        />
+        <span
+          className={`absolute inset-0 rounded-full bg-zinc-300 transition peer-disabled:opacity-50 ${trackToneClass}`}
+        />
+        <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5 peer-disabled:opacity-70" />
+      </span>
+    </label>
   );
 }
 
@@ -228,13 +369,22 @@ export default function AdminDashboard() {
   const [totalPhotos, setTotalPhotos] = useState(0);
 
   const [selectedPhotoIds, setSelectedPhotoIds] = useState([]);
+  const [bulkMoveCollection, setBulkMoveCollection] = useState("City Life");
   const [activePhotoId, setActivePhotoId] = useState("");
   const [homepageActivePhotoId, setHomepageActivePhotoId] = useState("");
-  const [bulkCollection, setBulkCollection] = useState("City Life");
   const [isBulkRunning, setIsBulkRunning] = useState(false);
   const [savingPhotoId, setSavingPhotoId] = useState("");
   const [deletingPhotoId, setDeletingPhotoId] = useState("");
   const [showLibraryHelp, setShowLibraryHelp] = useState(false);
+  const [showLibraryToolsMenu, setShowLibraryToolsMenu] = useState(false);
+  const [categoryToolMode, setCategoryToolMode] = useState("add");
+  const [isLibraryEditorOpen, setIsLibraryEditorOpen] = useState(false);
+  const [showLibraryPoemFormatting, setShowLibraryPoemFormatting] = useState(false);
+  const [showUploadPoemFormatting, setShowUploadPoemFormatting] = useState(false);
+  const [showUploadPoemPreview, setShowUploadPoemPreview] = useState(false);
+  const [showLibraryPoemPreview, setShowLibraryPoemPreview] = useState(false);
+  const [showHomepagePoemPreview, setShowHomepagePoemPreview] = useState(false);
+  const [showModalPoemPreview, setShowModalPoemPreview] = useState(false);
   const [homepagePool, setHomepagePool] = useState([]);
   const [homepagePhotoIds, setHomepagePhotoIds] = useState([]);
   const [homepageSearchInput, setHomepageSearchInput] = useState("");
@@ -243,6 +393,7 @@ export default function AdminDashboard() {
   const [homepageMessage, setHomepageMessage] = useState("");
   const [homepageDraggingPhotoId, setHomepageDraggingPhotoId] = useState("");
   const [homepageDragOverPhotoId, setHomepageDragOverPhotoId] = useState("");
+  const [isHomepageEditorOpen, setIsHomepageEditorOpen] = useState(false);
   const [isSavingHomepage, setIsSavingHomepage] = useState(false);
   const [hasHomepageChanges, setHasHomepageChanges] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState("");
@@ -254,10 +405,25 @@ export default function AdminDashboard() {
   const [draggingPhotoId, setDraggingPhotoId] = useState("");
   const [dragOverPhotoId, setDragOverPhotoId] = useState("");
   const [isSavingOrder, setIsSavingOrder] = useState(false);
-  const [hasOrderChanges, setHasOrderChanges] = useState(false);
+  const [isAutoSavingHomepageOrder, setIsAutoSavingHomepageOrder] = useState(false);
+  const [autoSavingPhotoId, setAutoSavingPhotoId] = useState("");
+  const [lastOrderSnapshot, setLastOrderSnapshot] = useState([]);
+  const [libraryOriginalSnapshot, setLibraryOriginalSnapshot] = useState({
+    photoId: "",
+    draft: null,
+  });
   const [switchPrompt, setSwitchPrompt] = useState({
     open: false,
     nextPhotoId: "",
+  });
+  const [libraryExitPrompt, setLibraryExitPrompt] = useState({
+    open: false,
+  });
+  const [reorderConfirmPrompt, setReorderConfirmPrompt] = useState({
+    open: false,
+    sortLabel: "",
+    nextOrderIds: [],
+    previousOrderIds: [],
   });
   const [workspaceSwitchPrompt, setWorkspaceSwitchPrompt] = useState({
     open: false,
@@ -275,7 +441,9 @@ export default function AdminDashboard() {
   const editorPoemRef = useRef(null);
   const modalPoemRef = useRef(null);
   const editorPanelRef = useRef(null);
+  const libraryToolsRef = useRef(null);
   const homepageSequenceRef = useRef(null);
+  const libraryAutoSaveTimerRef = useRef(null);
   const baseOrderRef = useRef([]);
   const baseHomepageOrderRef = useRef([]);
 
@@ -292,7 +460,8 @@ export default function AdminDashboard() {
   const isHomepageTab = activeTab === "homepage";
   const isDraftsTab = activeTab === "drafts";
   const isLibraryTab = activeTab === "library" || isDraftsTab;
-  const canManualReorder = isLibraryTab && !isDraftsTab && librarySort === "manual";
+  const isHomepageCollectionFilter = collectionFilter === HOMEPAGE_COLLECTION_FILTER;
+  const canManualReorder = isLibraryTab && !isDraftsTab;
   const effectivePublishedFilter = isDraftsTab ? "draft" : publishedFilter;
   const librarySortOptions = useMemo(
     () =>
@@ -300,7 +469,7 @@ export default function AdminDashboard() {
         ? LIBRARY_SORT_OPTIONS.filter(
             (option) => option.value !== "manual" && option.value !== "curated",
           )
-        : LIBRARY_SORT_OPTIONS,
+        : LIBRARY_SORT_OPTIONS.filter((option) => option.value !== "manual"),
     [isDraftsTab],
   );
 
@@ -324,6 +493,16 @@ export default function AdminDashboard() {
 
     return isDraftDirty(activePhoto, activeDraft);
   }, [activeDraft, activePhoto]);
+  const hasOriginalSnapshotForActivePhoto = useMemo(
+    () => libraryOriginalSnapshot.photoId === activePhotoId && Boolean(libraryOriginalSnapshot.draft),
+    [activePhotoId, libraryOriginalSnapshot.draft, libraryOriginalSnapshot.photoId],
+  );
+  const canRestoreOriginal = useMemo(() => {
+    if (!hasOriginalSnapshotForActivePhoto || !activeDraft) {
+      return false;
+    }
+    return isDraftDirty(libraryOriginalSnapshot.draft, activeDraft);
+  }, [activeDraft, hasOriginalSnapshotForActivePhoto, libraryOriginalSnapshot.draft]);
   const homepagePhotoMap = useMemo(
     () => new Map(homepagePool.map((photo) => [photo.photoId, photo])),
     [homepagePool],
@@ -427,6 +606,43 @@ export default function AdminDashboard() {
     });
   }, [homepageAvailablePhotos, homepageSearchTerm]);
 
+  const requestLibraryEditorClose = useCallback(() => {
+    if (!isLibraryEditorOpen) {
+      return;
+    }
+
+    if (!activePhotoId || !activePhoto || !activeDraft) {
+      setLibraryExitPrompt({ open: false });
+      setIsLibraryEditorOpen(false);
+      return;
+    }
+
+    if (savingPhotoId === activePhotoId || deletingPhotoId === activePhotoId) {
+      return;
+    }
+
+    if (activeIsDirty) {
+      setLibraryExitPrompt({ open: true });
+      return;
+    }
+
+    if (libraryAutoSaveTimerRef.current) {
+      clearTimeout(libraryAutoSaveTimerRef.current);
+      libraryAutoSaveTimerRef.current = null;
+    }
+
+    setLibraryExitPrompt({ open: false });
+    setIsLibraryEditorOpen(false);
+  }, [
+    activeDraft,
+    activeIsDirty,
+    activePhoto,
+    activePhotoId,
+    deletingPhotoId,
+    isLibraryEditorOpen,
+    savingPhotoId,
+  ]);
+
   const ensureCsrfToken = useCallback(async () => {
     if (csrfToken) {
       return csrfToken;
@@ -478,13 +694,20 @@ export default function AdminDashboard() {
     setLoadingPhotos(true);
 
     try {
+      const usingHomepageFilter = collectionFilter === HOMEPAGE_COLLECTION_FILTER;
+      const requestedSort = usingHomepageFilter ? "curated" : librarySort;
+      const requestedLimit = usingHomepageFilter ? HOMEPAGE_MAX_PHOTOS : pageSize;
+      const requestedOffset = usingHomepageFilter ? 0 : (page - 1) * pageSize;
+
       const params = new URLSearchParams({
-        sort: librarySort,
+        sort: requestedSort,
         includeDrafts: "1",
-        limit: String(pageSize),
-        offset: String((page - 1) * pageSize),
+        limit: String(requestedLimit),
+        offset: String(requestedOffset),
       });
-      if (collectionFilter !== "All") {
+      if (usingHomepageFilter) {
+        params.set("featured", "1");
+      } else if (collectionFilter !== "All") {
         params.set("collection", collectionFilter);
       }
       if (searchQuery) {
@@ -506,11 +729,10 @@ export default function AdminDashboard() {
       setTotalPhotos(nextTotal);
       setCollections((current) => mergeCollections(current, photoList.collections || []));
       setDrafts((current) => buildDraftMap(nextPhotos, current));
-      setBulkCollection((current) => current || "City Life");
       baseOrderRef.current = nextOrder;
-      setHasOrderChanges(false);
       setDraggingPhotoId("");
       setDragOverPhotoId("");
+      setLastOrderSnapshot([]);
       setManageStatus("idle");
       setManageMessage("");
     } catch (error) {
@@ -602,13 +824,22 @@ export default function AdminDashboard() {
   }, [isDraftsTab, librarySort]);
 
   useEffect(() => {
+    if (!collectionOptions.length) {
+      return;
+    }
+    if (!collectionOptions.includes(bulkMoveCollection)) {
+      setBulkMoveCollection(collectionOptions[0]);
+    }
+  }, [bulkMoveCollection, collectionOptions]);
+
+  useEffect(() => {
     if (canManualReorder) {
       return;
     }
 
-    setHasOrderChanges(false);
     setDraggingPhotoId("");
     setDragOverPhotoId("");
+    setLastOrderSnapshot([]);
   }, [canManualReorder]);
 
   useEffect(() => {
@@ -648,6 +879,129 @@ export default function AdminDashboard() {
   }, [homepagePool]);
 
   useEffect(() => {
+    if (!isHomepageTab) {
+      setIsHomepageEditorOpen(false);
+    }
+  }, [isHomepageTab]);
+
+  useEffect(() => {
+    if (!isLibraryTab) {
+      setIsLibraryEditorOpen(false);
+    }
+  }, [isLibraryTab]);
+
+  useEffect(() => {
+    if (!isHomepageEditorOpen || homepageActivePhoto) {
+      return;
+    }
+
+    setIsHomepageEditorOpen(false);
+  }, [homepageActivePhoto, isHomepageEditorOpen]);
+
+  useEffect(() => {
+    if (!isHomepageEditorOpen) {
+      return undefined;
+    }
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setIsHomepageEditorOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isHomepageEditorOpen]);
+
+  useEffect(() => {
+    if (!isLibraryEditorOpen || activePhoto) {
+      return;
+    }
+
+    setLibraryExitPrompt({ open: false });
+    setIsLibraryEditorOpen(false);
+  }, [activePhoto, isLibraryEditorOpen]);
+
+  useEffect(() => {
+    if (!isLibraryEditorOpen) {
+      return undefined;
+    }
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        requestLibraryEditorClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isLibraryEditorOpen, requestLibraryEditorClose]);
+
+  useEffect(() => {
+    if (!isLibraryEditorOpen) {
+      setShowLibraryPoemFormatting(false);
+      setShowLibraryPoemPreview(false);
+      setLibraryExitPrompt({ open: false });
+    }
+  }, [isLibraryEditorOpen]);
+
+  useEffect(() => {
+    if (!isLibraryEditorOpen) {
+      setLibraryOriginalSnapshot({
+        photoId: "",
+        draft: null,
+      });
+    }
+  }, [isLibraryEditorOpen]);
+
+  useEffect(() => {
+    if (!isUploadTab) {
+      setShowUploadPoemFormatting(false);
+      setShowUploadPoemPreview(false);
+    }
+  }, [isUploadTab]);
+
+  useEffect(() => {
+    setShowLibraryPoemFormatting(false);
+    setShowLibraryPoemPreview(false);
+  }, [activePhotoId]);
+
+  useEffect(() => {
+    if (!isHomepageEditorOpen) {
+      setShowHomepagePoemPreview(false);
+    }
+  }, [isHomepageEditorOpen]);
+
+  useEffect(() => {
+    if (isLibraryTab) {
+      return;
+    }
+
+    setShowLibraryToolsMenu(false);
+  }, [isLibraryTab]);
+
+  useEffect(() => {
+    if (!showLibraryToolsMenu) {
+      return undefined;
+    }
+
+    const handleOutsidePointer = (event) => {
+      const container = libraryToolsRef.current;
+      if (!container || container.contains(event.target)) {
+        return;
+      }
+      setShowLibraryToolsMenu(false);
+    };
+
+    document.addEventListener("mousedown", handleOutsidePointer);
+    document.addEventListener("touchstart", handleOutsidePointer);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsidePointer);
+      document.removeEventListener("touchstart", handleOutsidePointer);
+    };
+  }, [showLibraryToolsMenu]);
+
+  useEffect(() => {
     if (!activePhotoId) {
       return;
     }
@@ -657,6 +1011,34 @@ export default function AdminDashboard() {
       panel.scrollTop = 0;
     }
   }, [activePhotoId]);
+
+  useEffect(() => {
+    if (!isLibraryEditorOpen || !activePhotoId) {
+      return;
+    }
+
+    setLibraryOriginalSnapshot((current) => {
+      if (current.photoId === activePhotoId && current.draft) {
+        return current;
+      }
+
+      const sourcePhoto =
+        photos.find((photo) => photo.photoId === activePhotoId) ||
+        homepagePool.find((photo) => photo.photoId === activePhotoId) ||
+        null;
+      const fallbackDraft = drafts[activePhotoId] || null;
+      const nextDraft = sourcePhoto ? toDraft(sourcePhoto) : fallbackDraft ? { ...fallbackDraft } : null;
+
+      if (!nextDraft) {
+        return current;
+      }
+
+      return {
+        photoId: activePhotoId,
+        draft: nextDraft,
+      };
+    });
+  }, [activePhotoId, drafts, homepagePool, isLibraryEditorOpen, photos]);
 
   useEffect(() => {
     if (!hasUnsavedChanges) {
@@ -738,6 +1120,41 @@ export default function AdminDashboard() {
     });
   }, [activePhotoId, activeTab, poemModal, updatePoemValue]);
 
+  const insertHomepagePoemFormatting = useCallback((before, after = before) => {
+    const photoId = homepageActivePhoto?.photoId;
+    const element = editorPoemRef.current;
+    if (!photoId || !element) {
+      return;
+    }
+
+    const start = element.selectionStart ?? element.value.length;
+    const end = element.selectionEnd ?? element.value.length;
+    const selected = element.value.slice(start, end);
+    const replacement = `${before}${selected}${after}`;
+    const nextValue = `${element.value.slice(0, start)}${replacement}${element.value.slice(end)}`;
+
+    setDrafts((current) => ({
+      ...current,
+      [photoId]: {
+        ...(current[photoId] || toDraft(homepagePhotoMap.get(photoId))),
+        poem: nextValue,
+      },
+    }));
+
+    requestAnimationFrame(() => {
+      const currentElement = editorPoemRef.current;
+      if (!currentElement) {
+        return;
+      }
+
+      currentElement.focus();
+      const cursorStart = start + before.length;
+      const cursorEnd = cursorStart + selected.length;
+      currentElement.setSelectionRange(cursorStart, cursorEnd);
+      resizeTextarea(currentElement);
+    });
+  }, [homepageActivePhoto, homepagePhotoMap]);
+
   const modalPoemValue =
     poemModal.mode === "upload"
       ? uploadForm.poem
@@ -753,6 +1170,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (!poemModal.open) {
+      setShowModalPoemPreview(false);
       return;
     }
 
@@ -920,15 +1338,29 @@ export default function AdminDashboard() {
     }));
   };
 
-  const savePhoto = useCallback(async (photoId) => {
-    const draft = drafts[photoId];
+  const savePhoto = useCallback(async (photoId, options = {}) => {
+    const {
+      refreshHomepage = true,
+      refreshLibrary = isLibraryTab,
+      silent = false,
+      background = false,
+      draftOverride = null,
+    } = options;
+    const draft = draftOverride || drafts[photoId];
     if (!draft) {
       return false;
     }
+    const draftSnapshot = { ...draft };
 
-    setSavingPhotoId(photoId);
-    setManageStatus("idle");
-    setManageMessage("");
+    if (background) {
+      setAutoSavingPhotoId(photoId);
+    } else {
+      setSavingPhotoId(photoId);
+    }
+    if (!silent) {
+      setManageStatus("idle");
+      setManageMessage("");
+    }
 
     try {
       const result = await fetchWithCsrf(`/api/photos/${photoId}`, {
@@ -948,23 +1380,155 @@ export default function AdminDashboard() {
       setPhotos((current) =>
         current.map((photo) => (photo.photoId === photoId ? result.photo : photo)),
       );
+      setHomepagePool((current) =>
+        current.map((photo) => (photo.photoId === photoId ? result.photo : photo)),
+      );
       setDrafts((current) => ({
         ...current,
-        [photoId]: toDraft(result.photo),
+        [photoId]:
+          background && current[photoId] && !areDraftValuesEqual(current[photoId], draftSnapshot)
+            ? current[photoId]
+            : toDraft(result.photo),
       }));
       setCollections((current) => mergeCollections(current, [result.photo.collection]));
-      setManageStatus("success");
-      setManageMessage(`Saved ${result.photo.title || "photo"}.`);
-      await loadHomepageData();
+      if (!silent) {
+        setManageStatus("success");
+        setManageMessage(`Saved ${result.photo.title || "photo"}.`);
+      }
+      if (refreshLibrary) {
+        await loadLibraryData();
+      }
+      if (refreshHomepage) {
+        await loadHomepageData();
+      }
       return true;
     } catch (error) {
       setManageStatus("error");
-      setManageMessage(error.message || "Unable to save photo.");
+      setManageMessage(
+        silent ? `Auto-save failed: ${error.message || "Unable to save photo."}` : error.message || "Unable to save photo.",
+      );
       return false;
     } finally {
-      setSavingPhotoId("");
+      if (background) {
+        setAutoSavingPhotoId("");
+      } else {
+        setSavingPhotoId("");
+      }
     }
-  }, [drafts, fetchWithCsrf, loadHomepageData]);
+  }, [drafts, fetchWithCsrf, isLibraryTab, loadHomepageData, loadLibraryData]);
+
+  useEffect(() => {
+    if (!isLibraryEditorOpen || !activePhoto || !activeDraft || !activeIsDirty) {
+      if (libraryAutoSaveTimerRef.current) {
+        clearTimeout(libraryAutoSaveTimerRef.current);
+        libraryAutoSaveTimerRef.current = null;
+      }
+      return;
+    }
+
+    if (
+      savingPhotoId === activePhoto.photoId ||
+      autoSavingPhotoId === activePhoto.photoId ||
+      deletingPhotoId === activePhoto.photoId
+    ) {
+      return;
+    }
+
+    libraryAutoSaveTimerRef.current = setTimeout(() => {
+      void savePhoto(activePhoto.photoId, {
+        refreshHomepage: false,
+        refreshLibrary: false,
+        silent: true,
+        background: true,
+      });
+    }, 1200);
+
+    return () => {
+      if (libraryAutoSaveTimerRef.current) {
+        clearTimeout(libraryAutoSaveTimerRef.current);
+        libraryAutoSaveTimerRef.current = null;
+      }
+    };
+  }, [
+    activeDraft,
+    activeIsDirty,
+    activePhoto,
+    autoSavingPhotoId,
+    deletingPhotoId,
+    isLibraryEditorOpen,
+    savePhoto,
+    savingPhotoId,
+  ]);
+
+  const restoreActivePhotoToOriginal = useCallback(async () => {
+    if (!activePhotoId || !hasOriginalSnapshotForActivePhoto || !libraryOriginalSnapshot.draft) {
+      return;
+    }
+    if (savingPhotoId === activePhotoId || deletingPhotoId === activePhotoId) {
+      return;
+    }
+
+    const restoredDraft = { ...libraryOriginalSnapshot.draft };
+    setDrafts((current) => ({
+      ...current,
+      [activePhotoId]: restoredDraft,
+    }));
+
+    await savePhoto(activePhotoId, {
+      draftOverride: restoredDraft,
+      refreshHomepage: true,
+      refreshLibrary: true,
+    });
+  }, [
+    activePhotoId,
+    deletingPhotoId,
+    hasOriginalSnapshotForActivePhoto,
+    libraryOriginalSnapshot.draft,
+    savePhoto,
+    savingPhotoId,
+  ]);
+
+  const cancelLibraryExitPrompt = () => {
+    setLibraryExitPrompt({ open: false });
+  };
+
+  const discardAndCloseLibraryEditor = () => {
+    if (libraryAutoSaveTimerRef.current) {
+      clearTimeout(libraryAutoSaveTimerRef.current);
+      libraryAutoSaveTimerRef.current = null;
+    }
+
+    if (activePhoto) {
+      setDrafts((current) => ({
+        ...current,
+        [activePhoto.photoId]: toDraft(activePhoto),
+      }));
+    }
+
+    setLibraryExitPrompt({ open: false });
+    setIsLibraryEditorOpen(false);
+  };
+
+  const saveAndCloseLibraryEditor = async () => {
+    if (!activePhoto) {
+      setLibraryExitPrompt({ open: false });
+      setIsLibraryEditorOpen(false);
+      return;
+    }
+
+    if (libraryAutoSaveTimerRef.current) {
+      clearTimeout(libraryAutoSaveTimerRef.current);
+      libraryAutoSaveTimerRef.current = null;
+    }
+
+    const saved = await savePhoto(activePhoto.photoId);
+    if (!saved) {
+      return;
+    }
+
+    setLibraryExitPrompt({ open: false });
+    setIsLibraryEditorOpen(false);
+  };
 
   const deletePhoto = useCallback(async (photo) => {
     const confirmed = window.confirm(`Delete "${photo.title || "Untitled"}"?`);
@@ -998,20 +1562,8 @@ export default function AdminDashboard() {
     }
   }, [fetchWithCsrf]);
 
-  const movePhotoInGrid = useCallback((fromPhotoId, toPhotoId) => {
-    setPhotos((current) => {
-      const next = reorderPhotoList(current, fromPhotoId, toPhotoId);
-      if (next === current) {
-        return current;
-      }
-
-      setHasOrderChanges(!areOrdersEqual(next, baseOrderRef.current));
-      return next;
-    });
-  }, []);
-
-  const savePhotoOrder = useCallback(async () => {
-    if (!hasOrderChanges || photos.length < 2) {
+  const persistLibraryOrder = useCallback(async (nextPhotos, previousOrderIds = []) => {
+    if (!Array.isArray(nextPhotos) || nextPhotos.length < 2) {
       return true;
     }
 
@@ -1025,15 +1577,14 @@ export default function AdminDashboard() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           action: "reorder",
-          photoIds: photos.map((item) => item.photoId),
+          photoIds: nextPhotos.map((item) => item.photoId),
         }),
       }).then(parseJsonResponse);
 
-      baseOrderRef.current = photos.map((item) => item.photoId);
-      setHasOrderChanges(false);
+      baseOrderRef.current = nextPhotos.map((item) => item.photoId);
+      setLastOrderSnapshot(previousOrderIds);
       setManageStatus("success");
-      setManageMessage("Photo order saved.");
-      await loadLibraryData();
+      setManageMessage("Order saved.");
       return true;
     } catch (error) {
       setManageStatus("error");
@@ -1042,10 +1593,53 @@ export default function AdminDashboard() {
     } finally {
       setIsSavingOrder(false);
     }
-  }, [fetchWithCsrf, hasOrderChanges, loadLibraryData, photos]);
+  }, [fetchWithCsrf]);
+
+  const saveHomepageOrderFromLibrary = useCallback(async (photoList) => {
+    const orderedIds = Array.isArray(photoList)
+      ? photoList.map((photo) => photo?.photoId).filter(Boolean)
+      : [];
+    if (orderedIds.length < 1) {
+      return false;
+    }
+
+    setIsAutoSavingHomepageOrder(true);
+    setManageStatus("idle");
+    setManageMessage("");
+
+    try {
+      const result = await fetchWithCsrf("/api/photos", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "setFeaturedOrder",
+          photoIds: orderedIds,
+        }),
+      }).then(parseJsonResponse);
+
+      const updatedPhotos = Array.isArray(result.photos) ? result.photos : photoList;
+      const updatedIds = Array.isArray(result.photoIds) ? result.photoIds : orderedIds;
+      baseHomepageOrderRef.current = updatedIds;
+
+      setPhotos(updatedPhotos);
+      setTotalPhotos(updatedPhotos.length);
+      setHasHomepageChanges(false);
+      setManageStatus("success");
+      setManageMessage("Homepage sequence saved.");
+
+      await loadHomepageData();
+      return true;
+    } catch (error) {
+      setManageStatus("error");
+      setManageMessage(error.message || "Unable to save homepage sequence.");
+      return false;
+    } finally {
+      setIsAutoSavingHomepageOrder(false);
+    }
+  }, [fetchWithCsrf, loadHomepageData]);
 
   const handleCardDragStart = (event, photoId) => {
-    if (!canManualReorder) {
+    if (!canManualReorder || isSavingOrder) {
       return;
     }
     setDraggingPhotoId(photoId);
@@ -1067,8 +1661,8 @@ export default function AdminDashboard() {
     setDragOverPhotoId(photoId);
   };
 
-  const handleCardDrop = (event, photoId) => {
-    if (!canManualReorder) {
+  const handleCardDrop = async (event, photoId) => {
+    if (!canManualReorder || isSavingOrder) {
       return;
     }
     event.preventDefault();
@@ -1080,9 +1674,97 @@ export default function AdminDashboard() {
       return;
     }
 
-    movePhotoInGrid(droppedPhotoId, photoId);
+    const nextPhotos = reorderPhotoList(photos, droppedPhotoId, photoId);
+    if (nextPhotos === photos) {
+      setDraggingPhotoId("");
+      setDragOverPhotoId("");
+      return;
+    }
+    const previousPhotos = photos;
+    const previousOrderIds = previousPhotos.map((item) => item.photoId);
+
+    if (isHomepageCollectionFilter) {
+      setPhotos(nextPhotos);
+      setDraggingPhotoId("");
+      setDragOverPhotoId("");
+      await saveHomepageOrderFromLibrary(nextPhotos);
+      return;
+    }
+    if (librarySort !== "manual") {
+      setDraggingPhotoId("");
+      setDragOverPhotoId("");
+      setReorderConfirmPrompt({
+        open: true,
+        sortLabel: librarySortOptions.find((option) => option.value === librarySort)?.label || librarySort,
+        nextOrderIds: nextPhotos.map((item) => item.photoId),
+        previousOrderIds,
+      });
+      return;
+    }
+
+    setPhotos(nextPhotos);
     setDraggingPhotoId("");
     setDragOverPhotoId("");
+    const saved = await persistLibraryOrder(nextPhotos, previousOrderIds);
+    if (!saved) {
+      setPhotos(previousPhotos);
+      return;
+    }
+    if (librarySort !== "manual") {
+      setPage(1);
+      setLibrarySort("manual");
+    }
+  };
+
+  const cancelReorderConfirm = () => {
+    setReorderConfirmPrompt({
+      open: false,
+      sortLabel: "",
+      nextOrderIds: [],
+      previousOrderIds: [],
+    });
+    setManageStatus("idle");
+    setManageMessage("Reorder canceled.");
+  };
+
+  const confirmReorderChange = async () => {
+    if (!reorderConfirmPrompt.open) {
+      return;
+    }
+
+    const { nextOrderIds, previousOrderIds } = reorderConfirmPrompt;
+    const map = new Map(photos.map((item) => [item.photoId, item]));
+    const nextPhotos = nextOrderIds.map((photoId) => map.get(photoId)).filter(Boolean);
+    const previousPhotos = previousOrderIds.map((photoId) => map.get(photoId)).filter(Boolean);
+
+    if (nextPhotos.length !== photos.length) {
+      setReorderConfirmPrompt({
+        open: false,
+        sortLabel: "",
+        nextOrderIds: [],
+        previousOrderIds: [],
+      });
+      setManageStatus("error");
+      setManageMessage("Unable to apply reorder. Please try again.");
+      return;
+    }
+
+    setReorderConfirmPrompt({
+      open: false,
+      sortLabel: "",
+      nextOrderIds: [],
+      previousOrderIds: [],
+    });
+    setPhotos(nextPhotos);
+    const saved = await persistLibraryOrder(nextPhotos, previousOrderIds);
+    if (!saved) {
+      if (previousPhotos.length === photos.length) {
+        setPhotos(previousPhotos);
+      }
+      return;
+    }
+    setPage(1);
+    setLibrarySort("manual");
   };
 
   const handleCardDragEnd = () => {
@@ -1093,8 +1775,38 @@ export default function AdminDashboard() {
     setDragOverPhotoId("");
   };
 
+  const undoLastOrderChange = async () => {
+    if (lastOrderSnapshot.length < 2 || photos.length < 2) {
+      return;
+    }
+
+    const map = new Map(photos.map((item) => [item.photoId, item]));
+    const restored = lastOrderSnapshot.map((photoId) => map.get(photoId)).filter(Boolean);
+    if (restored.length !== photos.length) {
+      setManageStatus("error");
+      setManageMessage("Unable to restore previous order.");
+      return;
+    }
+
+    const currentPhotos = photos;
+    setPhotos(restored);
+    const saved = await persistLibraryOrder(restored, []);
+    if (!saved) {
+      setPhotos(currentPhotos);
+      return;
+    }
+    setLastOrderSnapshot([]);
+    setManageStatus("success");
+    setManageMessage("Order reverted.");
+  };
+
   const requestPhotoSelection = (nextPhotoId) => {
-    if (!nextPhotoId || nextPhotoId === activePhotoId) {
+    if (!nextPhotoId) {
+      return;
+    }
+
+    if (nextPhotoId === activePhotoId) {
+      setIsLibraryEditorOpen(true);
       return;
     }
 
@@ -1107,6 +1819,7 @@ export default function AdminDashboard() {
     }
 
     setActivePhotoId(nextPhotoId);
+    setIsLibraryEditorOpen(true);
   };
 
   const cancelPhotoSwitch = () => {
@@ -1124,6 +1837,7 @@ export default function AdminDashboard() {
     setSwitchPrompt({ open: false, nextPhotoId: "" });
     if (nextPhotoId) {
       setActivePhotoId(nextPhotoId);
+      setIsLibraryEditorOpen(true);
     }
   };
 
@@ -1142,10 +1856,11 @@ export default function AdminDashboard() {
     setSwitchPrompt({ open: false, nextPhotoId: "" });
     if (nextPhotoId) {
       setActivePhotoId(nextPhotoId);
+      setIsLibraryEditorOpen(true);
     }
   };
 
-  const hasAnyPendingChanges = hasUnsavedChanges || hasOrderChanges || hasHomepageChanges;
+  const hasAnyPendingChanges = hasUnsavedChanges || hasHomepageChanges;
 
   const requestWorkspaceTabChange = (nextTab) => {
     if (!nextTab || nextTab === activeTab) {
@@ -1191,19 +1906,6 @@ export default function AdminDashboard() {
       });
     }
 
-    if (hasOrderChanges) {
-      setPhotos((current) => {
-        const map = new Map(current.map((item) => [item.photoId, item]));
-        const restored = baseOrderRef.current
-          .map((photoId) => map.get(photoId))
-          .filter(Boolean);
-        return restored.length === current.length ? restored : current;
-      });
-      setHasOrderChanges(false);
-      setDraggingPhotoId("");
-      setDragOverPhotoId("");
-    }
-
     if (hasHomepageChanges) {
       setHomepagePhotoIds(baseHomepageOrderRef.current);
       setHasHomepageChanges(false);
@@ -1228,6 +1930,13 @@ export default function AdminDashboard() {
     setIsSavingBeforeWorkspaceSwitch(true);
 
     try {
+      if (hasHomepageChanges) {
+        const homepageSaved = await saveHomepageSelection();
+        if (!homepageSaved) {
+          return;
+        }
+      }
+
       if (hasUnsavedChanges) {
         const uniquePhotos = new Map();
         for (const photo of photos) {
@@ -1244,25 +1953,13 @@ export default function AdminDashboard() {
           .map((photo) => photo.photoId);
 
         for (const photoId of dirtyPhotoIds) {
-          const saved = await savePhoto(photoId);
+          const saved = await savePhoto(photoId, { refreshHomepage: false });
           if (!saved) {
             return;
           }
         }
-      }
 
-      if (hasOrderChanges) {
-        const orderSaved = await savePhotoOrder();
-        if (!orderSaved) {
-          return;
-        }
-      }
-
-      if (hasHomepageChanges) {
-        const homepageSaved = await saveHomepageSelection();
-        if (!homepageSaved) {
-          return;
-        }
+        await loadHomepageData();
       }
 
       setWorkspaceSwitchPrompt({ open: false, nextTab: "" });
@@ -1275,17 +1972,17 @@ export default function AdminDashboard() {
 
   const normalizeCollectionName = (value) => toStringValue(value).slice(0, 80);
 
-  const autoScrollPageWhileDragging = (event) => {
-    const threshold = 120;
-    const speed = 18;
+  const autoScrollPageWhileDragging = useCallback((event) => {
+    const threshold = 140;
+    const speed = 24;
     if (event.clientY < threshold) {
       window.scrollBy(0, -speed);
     } else if (event.clientY > window.innerHeight - threshold) {
       window.scrollBy(0, speed);
     }
-  };
+  }, []);
 
-  const autoScrollHomepageSequence = (event) => {
+  const autoScrollHomepageSequence = useCallback((event) => {
     const container = homepageSequenceRef.current;
     if (!container) {
       return;
@@ -1299,7 +1996,7 @@ export default function AdminDashboard() {
     } else if (event.clientY > bounds.bottom - threshold) {
       container.scrollTop += speed;
     }
-  };
+  }, []);
 
   const addPhotoToHomepage = (photoId) => {
     if (!photoId || homepageSelectedSet.has(photoId)) {
@@ -1408,9 +2105,43 @@ export default function AdminDashboard() {
       }).then(parseJsonResponse);
 
       const next = Array.isArray(result.photoIds) ? result.photoIds : homepagePhotoIds;
+      const featuredSet = new Set(next);
+      const featuredOrderMap = new Map(next.map((photoId, index) => [photoId, index]));
       setHomepagePhotoIds(next);
       baseHomepageOrderRef.current = next;
       setHasHomepageChanges(false);
+      setHomepagePool((current) =>
+        current.map((photo) => {
+          const nextOrder = featuredOrderMap.get(photo.photoId);
+          const isFeatured = featuredSet.has(photo.photoId);
+          return {
+            ...photo,
+            featured: isFeatured,
+            featuredOrder: typeof nextOrder === "number" ? nextOrder : null,
+          };
+        }),
+      );
+      setPhotos((current) =>
+        current.map((photo) => {
+          const nextOrder = featuredOrderMap.get(photo.photoId);
+          const isFeatured = featuredSet.has(photo.photoId);
+          return {
+            ...photo,
+            featured: isFeatured,
+            featuredOrder: typeof nextOrder === "number" ? nextOrder : null,
+          };
+        }),
+      );
+      setDrafts((current) => {
+        const nextDrafts = { ...current };
+        for (const photoId of Object.keys(nextDrafts)) {
+          nextDrafts[photoId] = {
+            ...nextDrafts[photoId],
+            featured: featuredSet.has(photoId),
+          };
+        }
+        return nextDrafts;
+      });
       setHomepageStatus("success");
       setHomepageMessage("Homepage curation saved.");
 
@@ -1505,6 +2236,19 @@ export default function AdminDashboard() {
     setHomepageDragOverPhotoId("");
   };
 
+  useEffect(() => {
+    if (!homepageDraggingPhotoId && !draggingPhotoId) {
+      return undefined;
+    }
+
+    const handleGlobalDragOver = (event) => {
+      autoScrollPageWhileDragging(event);
+    };
+
+    window.addEventListener("dragover", handleGlobalDragOver);
+    return () => window.removeEventListener("dragover", handleGlobalDragOver);
+  }, [autoScrollPageWhileDragging, draggingPhotoId, homepageDraggingPhotoId]);
+
   const addCollectionOption = () => {
     const normalized = normalizeCollectionName(newCollectionName);
     if (!normalized) {
@@ -1514,7 +2258,6 @@ export default function AdminDashboard() {
     }
 
     setCollections((current) => mergeCollections(current, [normalized]));
-    setBulkCollection(normalized);
     setNewCollectionName("");
     setManageStatus("success");
     setManageMessage("Collection added. Assign it to photos to persist.");
@@ -1655,6 +2398,58 @@ export default function AdminDashboard() {
     }
   };
 
+  const runBulkMoveToCollection = async () => {
+    if (selectedCount === 0) {
+      setManageStatus("error");
+      setManageMessage("Select at least one photo.");
+      return;
+    }
+
+    const destination = normalizeCollectionName(bulkMoveCollection || "");
+    if (!destination) {
+      setManageStatus("error");
+      setManageMessage("Choose a destination collection.");
+      return;
+    }
+
+    const selectedPhotos = photos.filter((photo) => selectedSet.has(photo.photoId));
+    const toMove = selectedPhotos.filter((photo) => photo.collection !== destination);
+    const skippedCount = selectedPhotos.length - toMove.length;
+
+    if (toMove.length === 0) {
+      setManageStatus("success");
+      setManageMessage(`No changes needed. All selected photos are already in "${destination}".`);
+      return;
+    }
+
+    setIsBulkRunning(true);
+    setManageStatus("idle");
+    setManageMessage("");
+
+    try {
+      for (const photo of toMove) {
+        await fetchWithCsrf(`/api/photos/${photo.photoId}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ collection: destination }),
+        }).then(parseJsonResponse);
+      }
+
+      await loadLibraryData();
+      await loadHomepageData();
+      setSelectedPhotoIds([]);
+      setManageStatus("success");
+      setManageMessage(
+        `Moved ${toMove.length} photo(s) to "${destination}"${skippedCount > 0 ? `, skipped ${skippedCount} already there.` : "."}`,
+      );
+    } catch (error) {
+      setManageStatus("error");
+      setManageMessage(error.message || "Bulk move failed.");
+    } finally {
+      setIsBulkRunning(false);
+    }
+  };
+
   const runBulkDelete = async () => {
     if (selectedCount === 0) {
       setManageStatus("error");
@@ -1691,11 +2486,11 @@ export default function AdminDashboard() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-[1680px] px-4 py-8 sm:px-8 sm:py-10 lg:px-12">
+    <main className="mx-auto w-full max-w-[1680px] px-4 py-8 text-[16px] text-foreground sm:px-8 sm:py-10 lg:px-12 [&_.text-muted]:text-foreground/74 [&_button]:font-semibold [&_button]:tracking-[0.06em] [&_button]:transition-all [&_button]:duration-150 [&_input]:rounded-md [&_input]:border-zinc-400 [&_input]:bg-white [&_input]:text-[16px] [&_input]:text-foreground [&_input:focus]:ring-2 [&_input:focus]:ring-foreground/20 [&_select]:rounded-md [&_select]:border-zinc-400 [&_select]:bg-white [&_select]:text-[16px] [&_select]:text-foreground [&_select:focus]:ring-2 [&_select:focus]:ring-foreground/20 [&_textarea]:rounded-md [&_textarea]:border-zinc-400 [&_textarea]:bg-white [&_textarea]:text-[16px] [&_textarea]:text-foreground [&_textarea:focus]:ring-2 [&_textarea:focus]:ring-foreground/20 [&_label]:font-semibold [&_label]:tracking-normal [&_label]:normal-case [&_summary]:tracking-normal [&_summary]:normal-case">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-[11px] tracking-[0.18em] text-muted uppercase">Admin Workspace</p>
-          <h1 className="display-font mt-2 text-4xl leading-none sm:text-5xl">Photo Control Room</h1>
+          <p className="text-[12px] tracking-[0.18em] text-muted uppercase">Admin Workspace</p>
+          <h1 className="display-font mt-2 text-4xl leading-none text-foreground drop-shadow-[0_1px_0_rgba(0,0,0,0.1)] sm:text-5xl">Photo Control Room</h1>
           <p className="mt-3 max-w-2xl text-sm text-foreground/75">
             Curate homepage highlights, manage library metadata, and keep drafts private until ready.
           </p>
@@ -1712,10 +2507,10 @@ export default function AdminDashboard() {
         <button
           type="button"
           onClick={() => requestWorkspaceTabChange("upload")}
-          className={`border px-4 py-2 text-[11px] tracking-[0.14em] uppercase transition-colors ${
+          className={`rounded-md border bg-white/85 px-4 py-2 text-[12px] tracking-[0.14em] uppercase transition-all ${
             isUploadTab
               ? "border-foreground bg-foreground text-background shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
-              : "border-line hover:border-foreground"
+              : "border-line hover:border-foreground hover:bg-white"
           }`}
         >
           Upload
@@ -1723,10 +2518,10 @@ export default function AdminDashboard() {
         <button
           type="button"
           onClick={() => requestWorkspaceTabChange("homepage")}
-          className={`border px-4 py-2 text-[11px] tracking-[0.14em] uppercase transition-colors ${
+          className={`rounded-md border bg-white/85 px-4 py-2 text-[12px] tracking-[0.14em] uppercase transition-all ${
             isHomepageTab
               ? "border-foreground bg-foreground text-background shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
-              : "border-line hover:border-foreground"
+              : "border-line hover:border-foreground hover:bg-white"
           }`}
         >
           Homepage
@@ -1734,10 +2529,10 @@ export default function AdminDashboard() {
         <button
           type="button"
           onClick={() => requestWorkspaceTabChange("library")}
-          className={`border px-4 py-2 text-[11px] tracking-[0.14em] uppercase transition-colors ${
+          className={`rounded-md border bg-white/85 px-4 py-2 text-[12px] tracking-[0.14em] uppercase transition-all ${
             activeTab === "library"
               ? "border-foreground bg-foreground text-background shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
-              : "border-line hover:border-foreground"
+              : "border-line hover:border-foreground hover:bg-white"
           }`}
         >
           Library
@@ -1745,10 +2540,10 @@ export default function AdminDashboard() {
         <button
           type="button"
           onClick={() => requestWorkspaceTabChange("drafts")}
-          className={`border px-4 py-2 text-[11px] tracking-[0.14em] uppercase transition-colors ${
+          className={`rounded-md border bg-white/85 px-4 py-2 text-[12px] tracking-[0.14em] uppercase transition-all ${
             isDraftsTab
               ? "border-foreground bg-foreground text-background shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
-              : "border-line hover:border-foreground"
+              : "border-line hover:border-foreground hover:bg-white"
           }`}
         >
           Drafts
@@ -1756,161 +2551,304 @@ export default function AdminDashboard() {
       </div>
 
       {isUploadTab ? (
-        <section className="mt-6 rounded-2xl border border-foreground/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.93)_0%,rgba(252,250,247,0.9)_100%)] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:p-6">
-          <h2 className="text-sm tracking-[0.14em] uppercase">Multi-Photo Upload</h2>
-          <p className="mt-2 text-sm text-foreground/75">
-            Upload many photos in one run. Metadata below is applied as a template.
-          </p>
+        <section className="mt-6 rounded-2xl border border-line bg-[linear-gradient(180deg,rgba(255,255,255,0.99)_0%,rgba(252,249,244,0.95)_100%)] p-4 shadow-[0_14px_38px_rgba(0,0,0,0.08)] sm:p-6">
+          <header className="border-b border-line pb-4">
+            <h2 className="text-2xl font-semibold text-foreground">Multi-photo upload</h2>
+            <p className="mt-2 text-sm text-foreground/80">
+              Streamlined uploader for repeated batches. Configure defaults once and apply across all selected files.
+            </p>
+          </header>
 
-          <form onSubmit={handleUploadSubmit} className="mt-5 grid gap-4 lg:grid-cols-2">
-            <label className="text-xs tracking-[0.14em] uppercase lg:col-span-2">
-              Photo Files
+          <form onSubmit={handleUploadSubmit} className="mt-5 space-y-4">
+            <section className="rounded-xl border border-line bg-white p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground">1. Choose photos</h3>
+                  <p className="mt-1 text-sm text-muted">Start by selecting one or more image files. This is the only required step.</p>
+                </div>
+                <span className="rounded-full border border-foreground/20 bg-foreground/5 px-2.5 py-1 text-xs font-semibold text-foreground">
+                  Required
+                </span>
+              </div>
+
               <input
                 key={fileInputKey}
+                id="upload-photo-files"
                 type="file"
                 accept="image/*"
                 multiple
                 onChange={handleFileChange}
-                className="mt-2 block w-full border border-foreground/30 bg-white px-4 py-3 text-sm normal-case outline-none file:mr-4 file:border file:border-foreground/30 file:bg-foreground file:px-3 file:py-1 file:text-[10px] file:tracking-[0.1em] file:text-background file:uppercase"
+                className="sr-only"
                 disabled={isUploading}
               />
-            </label>
 
-            <p className="text-xs text-muted lg:col-span-2">
-              {files.length} file(s) selected. Max per file: 12MB.
-            </p>
-
-            <label className="text-xs tracking-[0.14em] uppercase">
-              Title Template
-              <input
-                name="title"
-                value={uploadForm.title}
-                onChange={handleUploadFieldChange}
-                type="text"
-                placeholder="Optional"
-                className="mt-2 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
-                disabled={isUploading}
-              />
-            </label>
-
-            <label className="text-xs tracking-[0.14em] uppercase">
-              Alt Text Template
-              <input
-                name="alt"
-                value={uploadForm.alt}
-                onChange={handleUploadFieldChange}
-                type="text"
-                placeholder="Describe image for screen readers"
-                className="mt-2 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
-                disabled={isUploading}
-              />
-            </label>
-
-            <label className="text-xs tracking-[0.14em] uppercase">
-              Collection
-              <select
-                name="collection"
-                value={uploadForm.collection}
-                onChange={handleUploadFieldChange}
-                className="mt-2 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
-                disabled={isUploading}
+              <label
+                htmlFor="upload-photo-files"
+                className="mt-3 block cursor-pointer rounded-xl border border-dashed border-zinc-400 bg-zinc-50 px-4 py-5 transition-colors hover:border-foreground hover:bg-zinc-100"
               >
-                {collectionOptions.map((collection) => (
-                  <option key={collection} value={collection}>
-                    {collection}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Drop images here or browse</p>
+                    <p className="mt-1 text-sm text-muted">JPG, PNG, WEBP. Maximum 12MB per file.</p>
+                  </div>
+                  <span className="rounded-md border border-line bg-white px-3 py-2 text-xs text-foreground">
+                    Choose files
+                  </span>
+                </div>
+              </label>
 
-            <div className="grid gap-2">
-              <label className="flex items-center gap-2 text-xs tracking-[0.12em] uppercase">
-                <input
-                  type="checkbox"
-                  name="featured"
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-foreground">
+                  {files.length} file(s) selected
+                </span>
+                <span className="text-xs text-muted">Limit: 12MB each</span>
+              </div>
+
+              {files.length > 0 ? (
+                <div className="mt-3 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
+                  {files.slice(0, 6).map((file) => (
+                    <p
+                      key={`${file.name}-${file.size}`}
+                      className="truncate rounded-md border border-line bg-white px-2.5 py-1.5 text-xs text-foreground/85"
+                    >
+                      {file.name}
+                    </p>
+                  ))}
+                  {files.length > 6 ? (
+                    <p className="rounded-md border border-line bg-white px-2.5 py-1.5 text-xs text-muted">
+                      +{files.length - 6} more file(s)
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </section>
+
+            <section className="rounded-xl border border-line bg-white p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground">2. Default metadata</h3>
+                  <p className="mt-1 text-sm text-muted">Applied to each photo by default. You can edit per-photo later in Library.</p>
+                </div>
+                <span className="rounded-full border border-line bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-muted">
+                  Core settings
+                </span>
+              </div>
+
+              <div className="mt-3 grid gap-3 lg:grid-cols-3">
+                <label className="text-sm">
+                  Title template
+                  <input
+                    name="title"
+                    value={uploadForm.title}
+                    onChange={handleUploadFieldChange}
+                    type="text"
+                    placeholder="Optional"
+                    className="mt-1.5 w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
+                    disabled={isUploading}
+                  />
+                </label>
+
+                <label className="text-sm">
+                  Alt text template
+                  <input
+                    name="alt"
+                    value={uploadForm.alt}
+                    onChange={handleUploadFieldChange}
+                    type="text"
+                    placeholder="Describe image for screen readers"
+                    className="mt-1.5 w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
+                    disabled={isUploading}
+                  />
+                </label>
+
+                <label className="text-sm">
+                  Collection
+                  <select
+                    name="collection"
+                    value={uploadForm.collection}
+                    onChange={handleUploadFieldChange}
+                    className="mt-1.5 w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
+                    disabled={isUploading}
+                  >
+                    {collectionOptions.map((collection) => (
+                      <option key={collection} value={collection}>
+                        {collection}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-line bg-white p-4">
+              <h3 className="text-lg font-semibold text-foreground">3. Publishing settings</h3>
+              <p className="mt-1 text-sm text-muted">Control public visibility and whether uploads should appear on the homepage curation list.</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <ToggleSwitch
+                  label="Feature on homepage"
                   checked={Boolean(uploadForm.featured)}
-                  onChange={handleUploadFieldChange}
-                  className="h-4 w-4 accent-foreground"
+                  tone="homepage"
+                  onChange={(event) =>
+                    handleUploadFieldChange({
+                      target: { name: "featured", type: "checkbox", checked: event.target.checked, value: "" },
+                    })
+                  }
                   disabled={isUploading}
                 />
-                Feature On Homepage
-              </label>
-              <label className="flex items-center gap-2 text-xs tracking-[0.12em] uppercase">
-                <input
-                  type="checkbox"
-                  name="published"
+                <ToggleSwitch
+                  label="Published on site"
                   checked={Boolean(uploadForm.published)}
-                  onChange={handleUploadFieldChange}
-                  className="h-4 w-4 accent-foreground"
+                  tone="published"
+                  onChange={(event) =>
+                    handleUploadFieldChange({
+                      target: { name: "published", type: "checkbox", checked: event.target.checked, value: "" },
+                    })
+                  }
                   disabled={isUploading}
                 />
-                Published On Site
-              </label>
-              <p className="text-xs leading-5 text-muted">
-                Published photos appear on public pages. Draft photos stay private in admin.
-                Use the Homepage tab to choose homepage photos and main hero order.
+              </div>
+              <p className="mt-2 text-sm text-muted">
+                Published photos appear on public pages. Disable it to keep uploads private in Drafts.
               </p>
-            </div>
+            </section>
 
-            <label className="text-xs tracking-[0.14em] uppercase lg:col-span-2">
-              Caption
-              <textarea
-                name="caption"
-                value={uploadForm.caption}
-                onChange={handleUploadFieldChange}
-                rows={4}
-                className="mt-2 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
-                disabled={isUploading}
-              />
-            </label>
+            <section className="rounded-xl border border-line bg-white p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground">4. Optional writing</h3>
+                  <p className="mt-1 text-sm text-muted">Add caption or poem templates only if needed.</p>
+                </div>
+                <span className="rounded-full border border-line bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-muted">
+                  Optional
+                </span>
+              </div>
 
-            <div className="lg:col-span-2">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs tracking-[0.14em] uppercase">Poem</p>
+              <div className="mt-3 space-y-2">
+                <details className="rounded-md border border-line bg-zinc-50/60">
+                  <summary className="cursor-pointer px-3 py-2.5 text-sm font-semibold text-foreground">Caption template</summary>
+                  <div className="border-t border-line bg-white px-3 py-3">
+                    <textarea
+                      name="caption"
+                      value={uploadForm.caption}
+                      onChange={handleUploadFieldChange}
+                      rows={3}
+                      className="min-h-[110px] w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
+                      disabled={isUploading}
+                    />
+                  </div>
+                </details>
+
+                <details className="rounded-md border border-line bg-zinc-50/60">
+                  <summary className="cursor-pointer px-3 py-2.5 text-sm font-semibold text-foreground">Poem template</summary>
+                  <div className="border-t border-line bg-white px-3 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-foreground">Poem editor</p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowUploadPoemFormatting((current) => !current)}
+                          className={`rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
+                            showUploadPoemFormatting
+                              ? "border-violet-300 bg-violet-50 text-violet-800 hover:bg-violet-100"
+                              : "border-line bg-white text-foreground/85 hover:border-violet-300 hover:text-violet-700"
+                          }`}
+                        >
+                          {showUploadPoemFormatting ? "Hide format" : "Format"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowUploadPoemPreview((current) => !current)}
+                          className={`rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
+                            showUploadPoemPreview
+                              ? "border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100"
+                              : "border-line bg-white text-foreground/85 hover:border-sky-300 hover:text-sky-700"
+                          }`}
+                        >
+                          {showUploadPoemPreview ? "Hide preview" : "Preview"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openPoemEditor("upload")}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-line hover:border-foreground"
+                          aria-label="Expand poem editor"
+                          title="Expand poem editor"
+                        >
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+                            <path d="M8 4H4v4" />
+                            <path d="M16 4h4v4" />
+                            <path d="M8 20H4v-4" />
+                            <path d="M16 20h4v-4" />
+                            <path d="M4 4l6 6" />
+                            <path d="M20 4l-6 6" />
+                            <path d="M4 20l6-6" />
+                            <path d="M20 20l-6-6" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    {showUploadPoemFormatting ? (
+                      <div className="mt-2">
+                        <PoemToolbar onInsert={insertPoemFormatting} />
+                      </div>
+                    ) : null}
+
+                    <textarea
+                      ref={uploadPoemRef}
+                      name="poem"
+                      value={uploadForm.poem}
+                      onChange={(event) => {
+                        handleUploadFieldChange(event);
+                        resizeTextarea(event.target);
+                      }}
+                      rows={4}
+                      className="mt-2 min-h-[120px] w-full border border-line px-3 py-2.5 leading-7 whitespace-pre-wrap outline-none focus:border-foreground"
+                      disabled={isUploading}
+                    />
+                    {showUploadPoemPreview ? (
+                      <PoemLivePreview
+                        value={uploadForm.poem}
+                        emptyText="Write a poem and click Preview to view formatting."
+                        className="mt-2"
+                      />
+                    ) : null}
+                  </div>
+                </details>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-foreground/20 bg-[linear-gradient(180deg,rgba(248,248,248,0.8)_0%,rgba(255,255,255,1)_100%)] p-4">
+              <h3 className="text-lg font-semibold text-foreground">5. Upload</h3>
+              <p className="mt-1 text-sm text-muted">
+                Ready to upload {files.length} photo{files.length === 1 ? "" : "s"} with your current defaults.
+              </p>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-muted">
+                  {ready ? "Cloudinary is connected." : "Cloudinary is not configured."}
+                </p>
                 <button
-                  type="button"
-                  onClick={() => openPoemEditor("upload")}
-                  className="border border-line px-3 py-1 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground"
+                  type="submit"
+                  className="w-full rounded-md border border-foreground bg-foreground px-6 py-3.5 text-sm font-semibold text-background hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[240px]"
+                  disabled={isUploading || !ready || files.length === 0}
                 >
-                  Expand Editor
+                  {isUploading ? "Uploading..." : `Upload ${files.length || ""} photo${files.length === 1 ? "" : "s"}`}
                 </button>
               </div>
-              <PoemToolbar onInsert={insertPoemFormatting} />
-              <textarea
-                ref={uploadPoemRef}
-                name="poem"
-                value={uploadForm.poem}
-                onChange={(event) => {
-                  handleUploadFieldChange(event);
-                  resizeTextarea(event.target);
-                }}
-                rows={6}
-                className="mt-2 min-h-[160px] w-full border border-line px-3 py-2 text-sm leading-6 whitespace-pre-wrap normal-case outline-none focus:border-foreground"
-                disabled={isUploading}
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full border border-foreground bg-foreground px-6 py-3 text-[11px] tracking-[0.18em] text-background uppercase transition-opacity hover:opacity-90 disabled:opacity-50 sm:w-max"
-              disabled={isUploading || !ready || files.length === 0}
-            >
-              {isUploading ? "Uploading..." : `Upload ${files.length || ""} Photo(s)`}
-            </button>
+            </section>
           </form>
 
           {uploadMessage ? (
-            <p className={`mt-4 text-sm ${uploadStatus === "error" ? "text-red-700" : "text-muted"}`}>
+            <p className={`mt-4 text-sm ${uploadStatus === "error" ? "text-red-700" : "text-foreground/80"}`}>
               {uploadMessage}
             </p>
           ) : null}
 
           {uploadResults.length > 0 ? (
-            <div className="mt-4 max-h-56 overflow-y-auto border border-line">
+            <div className="mt-4 max-h-56 overflow-y-auto rounded-md border border-line bg-white">
               {uploadResults.map((item) => (
                 <div
                   key={`${item.fileName}-${item.status}-${item.message}`}
-                  className="flex items-center justify-between gap-3 border-b border-line px-3 py-2 text-xs last:border-b-0"
+                  className="flex items-center justify-between gap-3 border-b border-line px-3 py-2 text-sm last:border-b-0"
                 >
                   <p className="truncate">{item.fileName}</p>
                   <p className={item.status === "success" ? "text-emerald-700" : "text-red-700"}>
@@ -1977,11 +2915,14 @@ export default function AdminDashboard() {
                 ) : null}
               </div>
 
-              <div className="grid items-start gap-5 xl:grid-cols-[minmax(320px,0.95fr)_minmax(0,1.25fr)]">
-                <section className="h-fit rounded-2xl border border-line bg-white p-4 shadow-[0_12px_30px_rgba(0,0,0,0.05)]">
+              <div className="space-y-4">
+                <section className="h-fit rounded-2xl border border-line bg-white p-3 shadow-[0_12px_30px_rgba(0,0,0,0.05)] sm:p-4">
                   <h3 className="text-[11px] tracking-[0.14em] uppercase">Homepage Sequence</h3>
                   <p className="mt-2 text-sm text-muted">
-                    Drag to reorder. Click a row to edit that homepage photo.
+                    Drag to reorder. Click Edit on a row to open the popup editor.
+                  </p>
+                  <p className="mt-1 text-xs text-muted">
+                    Tip: drag photo cards from the Published Library Picker below into this sequence.
                   </p>
 
                   <input
@@ -1995,7 +2936,7 @@ export default function AdminDashboard() {
                     ref={homepageSequenceRef}
                     onDragOver={handleHomepageListDragOver}
                     onDrop={handleHomepageListDrop}
-                    className="mt-3 max-h-[62vh] space-y-2 overflow-y-auto pr-1"
+                    className="mt-3 max-h-[56vh] space-y-2 overflow-y-auto pr-1 sm:max-h-[62vh]"
                   >
                     {homepageLoading ? (
                       <p className="text-sm text-muted">Loading homepage photos...</p>
@@ -2021,7 +2962,7 @@ export default function AdminDashboard() {
                             onDrop={(event) => handleHomepageDrop(event, photo.photoId)}
                             onDragEnd={handleHomepageDragEnd}
                             onClick={() => setHomepageActivePhotoId(photo.photoId)}
-                            className={`cursor-pointer rounded-xl border bg-white p-2 transition-all ${
+                            className={`cursor-pointer rounded-xl border bg-white p-2.5 transition-all sm:p-3 ${
                               isActive
                                 ? "border-foreground shadow-[0_10px_24px_rgba(0,0,0,0.09)]"
                                 : isDropTarget
@@ -2029,7 +2970,7 @@ export default function AdminDashboard() {
                                   : "border-line hover:border-foreground/45"
                             } ${isDragging ? "scale-[0.995] opacity-60" : ""}`}
                           >
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2.5 sm:gap-3">
                               <div
                                 className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-xs tracking-[0.08em] font-semibold ${
                                   slotLabel === 1
@@ -2042,18 +2983,20 @@ export default function AdminDashboard() {
                                 #{slotLabel}
                               </div>
 
-                              <div className="relative h-16 w-14 shrink-0 overflow-hidden rounded border border-line bg-zinc-200">
+                              <div className="relative h-[4.5rem] w-14 shrink-0 overflow-hidden rounded border border-line bg-zinc-200 sm:h-20 sm:w-16">
                                 <Image
                                   src={photo.thumbnailUrl || photo.imageUrl}
                                   alt={photo.alt || photo.title || "Homepage photo"}
                                   fill
-                                  sizes="80px"
+                                  sizes="(max-width: 640px) 72px, 96px"
                                   className="object-cover"
                                 />
                               </div>
 
                               <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm">{photo.title || "Untitled"}</p>
+                                <p className="truncate text-sm font-semibold leading-tight sm:text-base">
+                                  {photo.title || "Untitled"}
+                                </p>
                                 <p className="mt-1 truncate text-[10px] tracking-[0.12em] text-muted uppercase">
                                   {photo.collection}
                                 </p>
@@ -2061,19 +3004,30 @@ export default function AdminDashboard() {
 
                               <div className="flex flex-col items-end gap-1">
                                 {slotLabel === 1 ? (
-                                  <span className="rounded-full border border-amber-500/70 bg-amber-50 px-2 py-1 text-[10px] tracking-[0.12em] text-amber-800 uppercase">
+                                  <span className="rounded-full border border-amber-500/70 bg-amber-50 px-1.5 py-0.5 text-[10px] tracking-[0.12em] text-amber-800 uppercase sm:px-2 sm:py-1">
                                     Main Photo
                                   </span>
                                 ) : null}
                                 {isDirty ? (
-                                  <span className="rounded-full border border-amber-500/80 bg-amber-100 px-2 py-1 text-[10px] tracking-[0.1em] text-amber-900 uppercase">
+                                  <span className="rounded-full border border-amber-500/80 bg-amber-100 px-1.5 py-0.5 text-[10px] tracking-[0.1em] text-amber-900 uppercase sm:px-2 sm:py-1">
                                     Unsaved
                                   </span>
                                 ) : null}
                               </div>
                             </div>
 
-                            <div className="mt-2 flex justify-end">
+                            <div className="mt-2 flex justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setHomepageActivePhotoId(photo.photoId);
+                                  setIsHomepageEditorOpen(true);
+                                }}
+                                className="rounded border border-line px-2 py-1 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground"
+                              >
+                                Edit
+                              </button>
                               <button
                                 type="button"
                                 onClick={(event) => {
@@ -2091,247 +3045,50 @@ export default function AdminDashboard() {
                     )}
                   </div>
                 </section>
-
-                <aside className="rounded-2xl border border-line bg-white p-4 shadow-[0_12px_30px_rgba(0,0,0,0.05)]">
-                  {!homepageActivePhoto || !homepageActiveDraft ? (
-                    <p className="text-sm text-muted">
-                      Select a homepage photo in the sequence to edit title, caption, poem, and category.
-                    </p>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="border-b border-line pb-2">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-[10px] tracking-[0.12em] text-muted uppercase">Editing Homepage Photo</p>
-                            <p className="mt-1 text-base">
-                              {homepageActiveDraft.title || homepageActivePhoto.title || "Untitled"}
-                            </p>
-                            <div className="mt-1 flex flex-wrap gap-1">
-                              {homepagePhotoIds[0] === homepageActivePhoto.photoId ? (
-                                <span className="rounded bg-amber-500/90 px-2 py-0.5 text-[10px] tracking-[0.12em] text-black uppercase">
-                                  Main Photo
-                                </span>
-                              ) : (
-                                <span className="rounded bg-emerald-600/90 px-2 py-0.5 text-[10px] tracking-[0.12em] text-white uppercase">
-                                  On Homepage
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => savePhoto(homepageActivePhoto.photoId)}
-                            disabled={
-                              !homepageActiveIsDirty ||
-                              savingPhotoId === homepageActivePhoto.photoId ||
-                              deletingPhotoId === homepageActivePhoto.photoId
-                            }
-                            className="inline-flex h-9 w-9 items-center justify-center rounded border border-foreground/30 text-foreground transition-colors hover:border-foreground hover:bg-foreground hover:text-background disabled:cursor-not-allowed disabled:opacity-45"
-                            aria-label="Save homepage photo changes"
-                            title={homepageActiveIsDirty ? "Save changes" : "No changes to save"}
-                          >
-                            <span className="h-4 w-4">
-                              <SaveIcon />
-                            </span>
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="relative aspect-[4/5] w-full overflow-hidden rounded border border-line bg-zinc-200">
-                        <Image
-                          src={homepageActivePhoto.thumbnailUrl || homepageActivePhoto.imageUrl}
-                          alt={homepageActiveDraft.alt || homepageActiveDraft.title || "Homepage photo preview"}
-                          fill
-                          sizes="420px"
-                          className="object-cover"
-                        />
-                      </div>
-
-                      <label className="text-[10px] tracking-[0.12em] uppercase">
-                        Title
-                        <input
-                          value={homepageActiveDraft.title}
-                          onChange={(event) =>
-                            handleDraftChange(homepageActivePhoto.photoId, "title", event.target.value)
-                          }
-                          className="mt-1.5 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
-                        />
-                      </label>
-
-                      <label className="text-[10px] tracking-[0.12em] uppercase">
-                        Alt Text
-                        <input
-                          value={homepageActiveDraft.alt}
-                          onChange={(event) =>
-                            handleDraftChange(homepageActivePhoto.photoId, "alt", event.target.value)
-                          }
-                          className="mt-1.5 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
-                        />
-                      </label>
-
-                      <label className="text-[10px] tracking-[0.12em] uppercase">
-                        Collection
-                        <select
-                          value={homepageActiveDraft.collection}
-                          onChange={(event) =>
-                            handleDraftChange(homepageActivePhoto.photoId, "collection", event.target.value)
-                          }
-                          className="mt-1.5 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
-                        >
-                          {collectionOptions.map((collection) => (
-                            <option key={`homepage-${collection}`} value={collection}>
-                              {collection}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <div className="grid gap-2 rounded border border-line bg-white/70 p-2 sm:grid-cols-2">
-                        <label className="flex items-center gap-2 text-[10px] tracking-[0.12em] uppercase">
-                          <input
-                            type="checkbox"
-                            checked
-                            onChange={(event) => {
-                              if (!event.target.checked) {
-                                removePhotoFromHomepage(homepageActivePhoto.photoId);
-                              }
-                            }}
-                            className="h-4 w-4 accent-foreground"
-                          />
-                          On Homepage
-                        </label>
-                        <label className="flex items-center gap-2 text-[10px] tracking-[0.12em] uppercase">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(homepageActiveDraft.published)}
-                            onChange={(event) =>
-                              handleDraftChange(homepageActivePhoto.photoId, "published", event.target.checked)
-                            }
-                            className="h-4 w-4 accent-foreground"
-                          />
-                          Published
-                        </label>
-                      </div>
-
-                      <label className="text-[10px] tracking-[0.12em] uppercase">
-                        Caption
-                        <textarea
-                          rows={4}
-                          value={homepageActiveDraft.caption}
-                          onChange={(event) => {
-                            handleDraftChange(homepageActivePhoto.photoId, "caption", event.target.value);
-                            resizeTextarea(event.target);
-                          }}
-                          className="mt-1.5 min-h-[120px] w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
-                        />
-                      </label>
-
-                      <div>
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-[10px] tracking-[0.12em] uppercase">Poem</p>
-                          <button
-                            type="button"
-                            onClick={() => openPoemEditor("photo", homepageActivePhoto.photoId)}
-                            className="border border-line px-2 py-1 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground"
-                          >
-                            Expand Editor
-                          </button>
-                        </div>
-                        <PoemToolbar onInsert={insertPoemFormatting} />
-                        <textarea
-                          ref={editorPoemRef}
-                          rows={7}
-                          value={homepageActiveDraft.poem}
-                          onChange={(event) => {
-                            handleDraftChange(homepageActivePhoto.photoId, "poem", event.target.value);
-                            resizeTextarea(event.target);
-                          }}
-                          className="mt-1.5 min-h-[170px] w-full border border-line px-3 py-2 text-sm leading-6 whitespace-pre-wrap normal-case outline-none focus:border-foreground"
-                        />
-                      </div>
-
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => savePhoto(homepageActivePhoto.photoId)}
-                          disabled={
-                            savingPhotoId === homepageActivePhoto.photoId ||
-                            deletingPhotoId === homepageActivePhoto.photoId
-                          }
-                          className="border border-foreground px-4 py-2 text-[10px] tracking-[0.14em] uppercase transition-colors hover:bg-foreground hover:text-background disabled:opacity-50"
-                        >
-                          {savingPhotoId === homepageActivePhoto.photoId ? "Saving..." : "Save Metadata"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setDrafts((current) => ({
-                              ...current,
-                              [homepageActivePhoto.photoId]: toDraft(homepageActivePhoto),
-                            }))
-                          }
-                          className="border border-line px-4 py-2 text-[10px] tracking-[0.14em] uppercase transition-colors hover:border-foreground"
-                        >
-                          Reset
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removePhotoFromHomepage(homepageActivePhoto.photoId)}
-                          className="border border-line px-4 py-2 text-[10px] tracking-[0.14em] uppercase transition-colors hover:border-foreground"
-                        >
-                          Remove From Homepage
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </aside>
               </div>
 
-              <section className="rounded-2xl border border-line bg-white p-4 shadow-[0_12px_30px_rgba(0,0,0,0.05)]">
+              <section className="rounded-2xl border border-line bg-white p-3 shadow-[0_12px_30px_rgba(0,0,0,0.05)] sm:p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h3 className="text-[11px] tracking-[0.14em] uppercase">Published Library Picker</h3>
                     <p className="mt-2 text-sm text-muted">
-                      Drag or add published photos into Homepage Sequence. Draft photos are excluded.
+                      Add published photos to homepage. You can also drag a card directly into Homepage Sequence above.
                     </p>
                   </div>
                   <p className="text-xs tracking-[0.12em] text-muted uppercase">
                     {filteredHomepageAvailablePhotos.length} available
                   </p>
                 </div>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                   {filteredHomepageAvailablePhotos.map((photo) => (
-                    <article key={photo.photoId} className="overflow-hidden rounded-xl border border-line bg-white">
+                    <article
+                      key={photo.photoId}
+                      draggable
+                      onDragStart={(event) => handleHomepagePoolDragStart(event, photo.photoId)}
+                      onDragEnd={handleHomepageDragEnd}
+                      className="group overflow-hidden rounded-xl border border-line bg-white transition-all hover:border-foreground/45 hover:shadow-[0_10px_22px_rgba(0,0,0,0.08)]"
+                    >
                       <div className="relative aspect-[4/5] w-full bg-zinc-200">
                         <Image
                           src={photo.thumbnailUrl || photo.imageUrl}
                           alt={photo.alt || photo.title || "Published photo"}
                           fill
-                          sizes="260px"
-                          className="object-cover"
+                          sizes="(max-width: 640px) 88vw, (max-width: 1024px) 44vw, (max-width: 1536px) 30vw, 22vw"
+                          className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                         />
                       </div>
-                      <div className="space-y-2 px-2 py-2">
-                        <p className="truncate text-sm">{photo.title || "Untitled"}</p>
+                      <div className="space-y-2 p-3 sm:p-3.5">
+                        <p className="truncate text-[15px] font-semibold sm:text-base">{photo.title || "Untitled"}</p>
                         <p className="truncate text-[10px] tracking-[0.12em] text-muted uppercase">{photo.collection}</p>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            draggable
-                            onDragStart={(event) => handleHomepagePoolDragStart(event, photo.photoId)}
-                            className="flex-1 rounded border border-line px-2 py-2 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground"
-                          >
-                            Drag
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => addPhotoToHomepage(photo.photoId)}
-                            disabled={homepagePhotoIds.length >= HOMEPAGE_MAX_PHOTOS}
-                            className="flex-1 rounded border border-line px-2 py-2 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground disabled:opacity-45"
-                          >
-                            Add
-                          </button>
-                        </div>
+                        <p className="hidden text-xs text-muted sm:block">Drag card to sequence, or use Add.</p>
+                        <button
+                          type="button"
+                          onClick={() => addPhotoToHomepage(photo.photoId)}
+                          disabled={homepagePhotoIds.length >= HOMEPAGE_MAX_PHOTOS}
+                          className="w-full rounded border border-line px-3 py-2 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground disabled:opacity-45"
+                        >
+                          Add to Homepage
+                        </button>
                       </div>
                     </article>
                   ))}
@@ -2345,34 +3102,37 @@ export default function AdminDashboard() {
             </>
           ) : (
           <>
-          <div className="rounded-2xl border border-line bg-[linear-gradient(180deg,rgba(255,255,255,0.95)_0%,rgba(248,245,240,0.9)_100%)] p-4 shadow-[0_16px_48px_rgba(0,0,0,0.08)]">
+          <div className="rounded-2xl border border-line bg-[linear-gradient(180deg,rgba(255,255,255,0.99)_0%,rgba(252,249,244,0.96)_100%)] p-4 shadow-[0_12px_30px_rgba(0,0,0,0.08)]">
             <div className="mb-3">
-              <h2 className="text-sm tracking-[0.14em] uppercase">
+              <h2 className="text-lg font-semibold text-foreground">
                 {isDraftsTab ? "Draft Library" : "Photo Library"}
               </h2>
             </div>
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
-              <label className="text-[10px] tracking-[0.12em] uppercase">
-                Search
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="grid w-full gap-1 text-sm sm:w-[340px]">
+                <span className="text-foreground/90">Search</span>
                 <input
                   value={searchInput}
                   onChange={(event) => setSearchInput(event.target.value)}
                   placeholder="Title, caption, poem"
-                  className="mt-2 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
+                  className="w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
                 />
               </label>
 
-              <label className="text-[10px] tracking-[0.12em] uppercase">
-                Collection
+              <label className="grid min-w-[190px] gap-1 text-sm">
+                <span className="text-foreground/90">Category</span>
                 <select
                   value={collectionFilter}
                   onChange={(event) => {
                     setPage(1);
                     setCollectionFilter(event.target.value);
                   }}
-                  className="mt-2 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
+                  className="border border-line px-3 py-2.5 outline-none focus:border-foreground"
                 >
                   <option value="All">All</option>
+                  {!isDraftsTab ? (
+                    <option value={HOMEPAGE_COLLECTION_FILTER}>Homepage</option>
+                  ) : null}
                   {collectionOptions.map((collection) => (
                     <option key={collection} value={collection}>
                       {collection}
@@ -2381,66 +3141,246 @@ export default function AdminDashboard() {
                 </select>
               </label>
 
-              <label className="text-[10px] tracking-[0.12em] uppercase">
-                Visibility
-                <select
-                  value={effectivePublishedFilter}
-                  onChange={(event) => {
-                    setPage(1);
-                    setPublishedFilter(event.target.value);
-                  }}
-                  disabled={isDraftsTab}
-                  className="mt-2 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
-                >
-                  <option value="all">All</option>
-                  <option value="published">Published</option>
-                  <option value="draft">Draft</option>
-                </select>
-              </label>
-
-              <label className="text-[10px] tracking-[0.12em] uppercase">
-                Sort
+              <label className="grid min-w-[190px] gap-1 text-sm">
+                <span className="text-foreground/90">Sort</span>
                 <select
                   value={librarySort}
                   onChange={(event) => {
                     setPage(1);
                     setLibrarySort(event.target.value);
                   }}
-                  className="mt-2 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
+                  className="border border-line px-3 py-2.5 outline-none focus:border-foreground"
                 >
                   {librarySortOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
+                    <option key={`top-sort-${option.value}`} value={option.value}>
                       {option.label}
                     </option>
                   ))}
                 </select>
               </label>
 
-              <label className="text-[10px] tracking-[0.12em] uppercase">
-                Per Page
-                <select
-                  value={String(pageSize)}
-                  onChange={(event) => {
-                    setPage(1);
-                    setPageSize(Number(event.target.value));
-                  }}
-                  className="mt-2 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
+              <div ref={libraryToolsRef} className="relative self-end">
+                <button
+                  type="button"
+                  onClick={() => setShowLibraryToolsMenu((current) => !current)}
+                  className="inline-flex h-[46px] items-center gap-2 rounded-md border border-line bg-white px-3 text-[12px] hover:border-foreground"
+                  aria-expanded={showLibraryToolsMenu}
+                  aria-label="Toggle library tools"
                 >
-                  {PAGE_SIZE_OPTIONS.map((size) => (
-                    <option key={size} value={size}>
-                      {size}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path d="M4 7h16" />
+                    <path d="M4 12h16" />
+                    <path d="M4 17h16" />
+                  </svg>
+                  Tools
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setShowLibraryHelp((current) => !current)}
-                className="self-end border border-line px-3 py-2 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground"
-              >
-                {showLibraryHelp ? "Hide Help" : "Show Help"}
-              </button>
+                {showLibraryToolsMenu ? (
+                  <div className="absolute right-0 top-[calc(100%+0.55rem)] z-40 w-[min(94vw,430px)]">
+                    <div className="relative rounded-xl border border-line bg-[linear-gradient(180deg,rgba(255,255,255,0.99)_0%,rgba(250,248,243,0.96)_100%)] p-4 shadow-[0_16px_44px_rgba(0,0,0,0.16)]">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-foreground">Library tools</p>
+                        <button
+                          type="button"
+                          onClick={() => setShowLibraryToolsMenu(false)}
+                          className="rounded-md border border-line px-2.5 py-1.5 text-xs hover:border-foreground"
+                        >
+                          Close
+                        </button>
+                      </div>
+
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <label className="text-sm">
+                          Visibility
+                          <select
+                            value={effectivePublishedFilter}
+                            onChange={(event) => {
+                              setPage(1);
+                              setPublishedFilter(event.target.value);
+                            }}
+                            disabled={isDraftsTab}
+                            className="mt-1.5 w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
+                          >
+                            <option value="all">All</option>
+                            <option value="published">Published</option>
+                            <option value="draft">Draft</option>
+                          </select>
+                        </label>
+
+                        <label className="text-sm">
+                          Per Page
+                          <select
+                            value={String(pageSize)}
+                            onChange={(event) => {
+                              setPage(1);
+                              setPageSize(Number(event.target.value));
+                            }}
+                            className="mt-1.5 w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
+                          >
+                            {PAGE_SIZE_OPTIONS.map((size) => (
+                              <option key={size} value={size}>
+                                {size}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                      </div>
+
+                      <div className="mt-3 rounded-md border border-line bg-white/90 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-semibold">Help</p>
+                          <button
+                            type="button"
+                            onClick={() => setShowLibraryHelp((current) => !current)}
+                            className="rounded-md border border-line px-2.5 py-1.5 text-xs hover:border-foreground"
+                          >
+                            {showLibraryHelp ? "Hide" : "Show"}
+                          </button>
+                        </div>
+                        {showLibraryHelp ? (
+                          <p className="mt-2 text-xs leading-5 text-foreground/80">
+                            `Published` means visible on public pages. `Draft` stays private in admin only.
+                            Use `Homepage` for main-page curation and sequence. Turn on `Reorder` mode to drag cards.
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-3 rounded-md border border-line bg-white/90 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <h3 className="text-sm font-semibold">Categories</h3>
+                          <p className="text-xs text-muted">Add, rename, or move category groups.</p>
+                        </div>
+
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setCategoryToolMode("add")}
+                            className={`rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
+                              categoryToolMode === "add"
+                                ? "border-foreground bg-foreground text-background"
+                                : "border-line hover:border-foreground"
+                            }`}
+                          >
+                            Add
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCategoryToolMode("rename")}
+                            className={`rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
+                              categoryToolMode === "rename"
+                                ? "border-foreground bg-foreground text-background"
+                                : "border-line hover:border-foreground"
+                            }`}
+                          >
+                            Rename
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCategoryToolMode("move")}
+                            className={`rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
+                              categoryToolMode === "move"
+                                ? "border-foreground bg-foreground text-background"
+                                : "border-line hover:border-foreground"
+                            }`}
+                          >
+                            Move
+                          </button>
+                        </div>
+
+                        {categoryToolMode === "add" ? (
+                          <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                            <input
+                              value={newCollectionName}
+                              onChange={(event) => setNewCollectionName(event.target.value)}
+                              placeholder="New category name"
+                              className="w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
+                            />
+                            <button
+                              type="button"
+                              onClick={addCollectionOption}
+                              className="rounded-md border border-line px-4 py-2.5 text-xs hover:border-foreground"
+                            >
+                              Add
+                            </button>
+                          </div>
+                        ) : null}
+
+                        {categoryToolMode === "rename" ? (
+                          <div className="mt-2 grid gap-2">
+                            <select
+                              value={renameFromCollection}
+                              onChange={(event) => setRenameFromCollection(event.target.value)}
+                              className="w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
+                            >
+                              <option value="">Select category</option>
+                              {collectionOptions.map((collection) => (
+                                <option key={`rename-${collection}`} value={collection}>
+                                  {collection}
+                                </option>
+                              ))}
+                            </select>
+                            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                              <input
+                                value={renameToCollection}
+                                onChange={(event) => setRenameToCollection(event.target.value)}
+                                placeholder="New category name"
+                                className="w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
+                              />
+                              <button
+                                type="button"
+                                onClick={runRenameCollection}
+                                disabled={isUpdatingCollections}
+                                className="rounded-md border border-line px-4 py-2.5 text-xs hover:border-foreground disabled:opacity-45"
+                              >
+                                Rename
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {categoryToolMode === "move" ? (
+                          <div className="mt-2 grid gap-2">
+                            <select
+                              value={moveFromCollection}
+                              onChange={(event) => setMoveFromCollection(event.target.value)}
+                              className="w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
+                            >
+                              <option value="">From category</option>
+                              {collectionOptions.map((collection) => (
+                                <option key={`from-${collection}`} value={collection}>
+                                  {collection}
+                                </option>
+                              ))}
+                            </select>
+                            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                              <select
+                                value={moveToCollection}
+                                onChange={(event) => setMoveToCollection(event.target.value)}
+                                className="w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
+                              >
+                                {collectionOptions.map((collection) => (
+                                  <option key={`to-${collection}`} value={collection}>
+                                    {collection}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={runMoveCollection}
+                                disabled={isUpdatingCollections}
+                                className="rounded-md border border-line px-4 py-2.5 text-xs hover:border-foreground disabled:opacity-45"
+                              >
+                                Move
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             {isDraftsTab ? (
@@ -2448,214 +3388,6 @@ export default function AdminDashboard() {
                 Draft vault view: all unpublished photos are listed here so you can review and publish later.
               </p>
             ) : null}
-
-            {!isDraftsTab ? (
-              <p className="mt-3 text-sm text-muted">
-                Sort mode:{" "}
-                <span className="font-medium text-foreground">
-                  {librarySortOptions.find((option) => option.value === librarySort)?.label || "Newest First"}
-                </span>
-                {canManualReorder
-                  ? " (drag cards and save order)."
-                  : " (switch to Manual Order to drag-reorder)."}
-              </p>
-            ) : null}
-
-            {showLibraryHelp ? (
-              <div className="mt-4 border border-foreground/20 bg-white p-3 text-sm text-foreground/80">
-                <p>
-                  `Published` means visible on public pages. `Draft` stays private in admin only.
-                  Use the `Homepage` tab to set homepage photos and Main Photo. Drag cards to reorder this library,
-                  then click `Save Order`.
-                </p>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="rounded-2xl border border-line bg-white p-4 shadow-[0_12px_30px_rgba(0,0,0,0.05)]">
-            <div className="flex flex-wrap items-center gap-2">
-              {canManualReorder ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={savePhotoOrder}
-                    disabled={!hasOrderChanges || isSavingOrder || loadingPhotos}
-                    className="border border-foreground px-3 py-2 text-[10px] tracking-[0.14em] uppercase transition-colors hover:bg-foreground hover:text-background disabled:opacity-50"
-                  >
-                    {isSavingOrder ? "Saving..." : "Save Order"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPhotos((current) => {
-                        const map = new Map(current.map((item) => [item.photoId, item]));
-                        const restored = baseOrderRef.current
-                          .map((photoId) => map.get(photoId))
-                          .filter(Boolean);
-                        return restored.length === current.length ? restored : current;
-                      });
-                      setHasOrderChanges(false);
-                      setDraggingPhotoId("");
-                      setDragOverPhotoId("");
-                    }}
-                    disabled={!hasOrderChanges || isSavingOrder || loadingPhotos}
-                    className="border border-line px-3 py-2 text-[10px] tracking-[0.14em] uppercase transition-colors hover:border-foreground disabled:opacity-50"
-                  >
-                    Reset Order
-                  </button>
-                </>
-              ) : (
-                <p className="rounded border border-line px-3 py-2 text-[10px] tracking-[0.12em] text-muted uppercase">
-                  Drag reorder is available in Manual Order mode.
-                </p>
-              )}
-              <button
-                type="button"
-                onClick={toggleSelectAll}
-                className="border border-line px-3 py-2 text-[10px] tracking-[0.14em] uppercase transition-colors hover:border-foreground"
-              >
-                {photos.length > 0 && selectedCount === photos.length ? "Clear All" : "Select All"}
-              </button>
-              <p className="text-xs text-muted">
-                {selectedCount} selected on this page {canManualReorder && hasOrderChanges ? "• Order has unsaved changes" : ""}
-              </p>
-            </div>
-
-            <div className="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-4">
-              <label className="text-[10px] tracking-[0.12em] uppercase">
-                Move Selected To
-                <select
-                  value={bulkCollection}
-                  onChange={(event) => setBulkCollection(event.target.value)}
-                  className="mt-2 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
-                  disabled={isBulkRunning}
-                >
-                  {collectionOptions.map((collection) => (
-                    <option key={collection} value={collection}>
-                      {collection}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <button
-                type="button"
-                onClick={() => runBulkPatch({ collection: bulkCollection }, "Collection updated for selected photos.")}
-                disabled={isBulkRunning}
-                className="self-end border border-line px-3 py-2 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground disabled:opacity-50"
-              >
-                Apply Collection
-              </button>
-
-              <button
-                type="button"
-                onClick={() => runBulkPatch({ published: false }, "Selected photos moved to draft.")}
-                disabled={isBulkRunning}
-                className="self-end border border-line px-3 py-2 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground disabled:opacity-50"
-              >
-                Draft Selected
-              </button>
-
-              <button
-                type="button"
-                onClick={runBulkDelete}
-                disabled={isBulkRunning}
-                className="self-end border border-red-600 px-3 py-2 text-[10px] tracking-[0.12em] text-red-700 uppercase transition-colors hover:bg-red-600 hover:text-white disabled:opacity-50"
-              >
-                Delete Selected
-              </button>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-line bg-white p-4 shadow-[0_12px_30px_rgba(0,0,0,0.05)]">
-            <h3 className="text-[11px] tracking-[0.14em] uppercase">Category Manager</h3>
-            <p className="mt-2 text-sm text-muted">
-              Add categories, rename existing category names, or move all photos from one category to another.
-            </p>
-
-            <div className="mt-4 grid gap-3 lg:grid-cols-3">
-              <div className="border border-line p-3">
-                <p className="text-[10px] tracking-[0.12em] uppercase">Add Category</p>
-                <input
-                  value={newCollectionName}
-                  onChange={(event) => setNewCollectionName(event.target.value)}
-                  placeholder="e.g. Rooftop Stories"
-                  className="mt-2 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
-                />
-                <button
-                  type="button"
-                  onClick={addCollectionOption}
-                  className="mt-2 w-full border border-line px-3 py-2 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground"
-                >
-                  Add
-                </button>
-              </div>
-
-              <div className="border border-line p-3">
-                <p className="text-[10px] tracking-[0.12em] uppercase">Rename Category</p>
-                <select
-                  value={renameFromCollection}
-                  onChange={(event) => setRenameFromCollection(event.target.value)}
-                  className="mt-2 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
-                >
-                  <option value="">Select category</option>
-                  {collectionOptions.map((collection) => (
-                    <option key={`rename-${collection}`} value={collection}>
-                      {collection}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  value={renameToCollection}
-                  onChange={(event) => setRenameToCollection(event.target.value)}
-                  placeholder="New category name"
-                  className="mt-2 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
-                />
-                <button
-                  type="button"
-                  onClick={runRenameCollection}
-                  disabled={isUpdatingCollections}
-                  className="mt-2 w-full border border-line px-3 py-2 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground disabled:opacity-45"
-                >
-                  Rename
-                </button>
-              </div>
-
-              <div className="border border-line p-3">
-                <p className="text-[10px] tracking-[0.12em] uppercase">Move Category Photos</p>
-                <select
-                  value={moveFromCollection}
-                  onChange={(event) => setMoveFromCollection(event.target.value)}
-                  className="mt-2 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
-                >
-                  <option value="">From category</option>
-                  {collectionOptions.map((collection) => (
-                    <option key={`from-${collection}`} value={collection}>
-                      {collection}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={moveToCollection}
-                  onChange={(event) => setMoveToCollection(event.target.value)}
-                  className="mt-2 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
-                >
-                  {collectionOptions.map((collection) => (
-                    <option key={`to-${collection}`} value={collection}>
-                      {collection}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={runMoveCollection}
-                  disabled={isUpdatingCollections}
-                  className="mt-2 w-full border border-line px-3 py-2 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground disabled:opacity-45"
-                >
-                  Move
-                </button>
-              </div>
-            </div>
           </div>
 
           {manageMessage ? (
@@ -2664,8 +3396,100 @@ export default function AdminDashboard() {
             </p>
           ) : null}
 
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,2.2fr)_minmax(320px,1fr)]">
-            <section className="border border-line p-4">
+          <div className="space-y-5">
+            <section className="rounded-2xl border border-line bg-white p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3">
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={photos.length > 0 && selectedCount === photos.length}
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4 accent-foreground"
+                    aria-label="Select all photos on this page"
+                  />
+                  Select all on page
+                </label>
+                <p className="text-sm text-muted">
+                  {selectedCount > 0 ? `${selectedCount} selected` : "Click any photo card to edit"}
+                </p>
+              </div>
+
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                {lastOrderSnapshot.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={undoLastOrderChange}
+                    disabled={isSavingOrder || loadingPhotos}
+                    className="rounded-md border border-line px-3 py-2 text-xs disabled:opacity-50"
+                  >
+                    Undo last reorder
+                  </button>
+                ) : null}
+                {isAutoSavingHomepageOrder ? (
+                  <p className="text-sm text-muted">Saving homepage sequence...</p>
+                ) : isSavingOrder ? (
+                  <p className="text-sm text-muted">Saving order...</p>
+                ) : (
+                  <p className="text-sm text-muted">Drag photo thumbnails to reorder. Order saves automatically.</p>
+                )}
+              </div>
+
+              {selectedCount > 0 ? (
+                <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-zinc-300 bg-zinc-50/80 p-2.5">
+                  <label className="grid min-w-[190px] gap-1 text-xs">
+                    <span className="text-foreground/85">Move selected to</span>
+                    <select
+                      value={bulkMoveCollection}
+                      onChange={(event) => setBulkMoveCollection(event.target.value)}
+                      className="border border-line px-2.5 py-2 outline-none focus:border-foreground"
+                    >
+                      {collectionOptions.map((collection) => (
+                        <option key={`bulk-${collection}`} value={collection}>
+                          {collection}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={runBulkMoveToCollection}
+                    disabled={isBulkRunning}
+                    className="rounded-md border border-line px-3 py-2 text-xs disabled:opacity-50"
+                  >
+                    Move
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => runBulkPatch({ published: false }, "Selected photos moved to draft.")}
+                    disabled={isBulkRunning}
+                    className="rounded-md border border-line px-3 py-2 text-xs disabled:opacity-50"
+                  >
+                    Move to draft
+                  </button>
+                  <button
+                    type="button"
+                    onClick={runBulkDelete}
+                    disabled={isBulkRunning}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-red-600 px-3 py-2 text-xs text-red-700 hover:bg-red-600 hover:text-white disabled:opacity-50"
+                  >
+                    <span className="h-3.5 w-3.5">
+                      <TrashIcon />
+                    </span>
+                    Delete
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPhotoIds([])}
+                    className="rounded-md border border-line px-3 py-2 text-xs"
+                  >
+                    Clear selection
+                  </button>
+                </div>
+              ) : null}
+
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <p className="text-sm text-muted">Click any photo card to edit in popup.</p>
+              </div>
               {loadingPhotos ? (
                 <p className="text-sm text-muted">Loading library...</p>
               ) : photos.length === 0 ? (
@@ -2684,8 +3508,6 @@ export default function AdminDashboard() {
                       return (
                         <article
                           key={photo.photoId}
-                          draggable={canManualReorder}
-                          onDragStart={(event) => handleCardDragStart(event, photo.photoId)}
                           onDragOver={(event) => handleCardDragOver(event, photo.photoId)}
                           onDrop={(event) => handleCardDrop(event, photo.photoId)}
                           onDragEnd={handleCardDragEnd}
@@ -2704,9 +3526,26 @@ export default function AdminDashboard() {
                             onClick={() => requestPhotoSelection(photo.photoId)}
                             className="block w-full text-left"
                           >
-                            <div className="relative aspect-[4/5] w-full bg-zinc-200">
+                            <div
+                              draggable={canManualReorder}
+                              onDragStart={(event) => {
+                                if (!canManualReorder || isSavingOrder) {
+                                  return;
+                                }
+                                event.stopPropagation();
+                                handleCardDragStart(event, photo.photoId);
+                              }}
+                              onDragEnd={handleCardDragEnd}
+                              className={`relative aspect-[4/5] w-full bg-zinc-200 ${canManualReorder ? "cursor-grab active:cursor-grabbing" : ""}`}
+                            >
                               <div className="pointer-events-none absolute left-1.5 top-1.5 z-10 flex flex-wrap gap-1">
-                                <span className="rounded bg-black/70 px-2 py-0.5 text-[10px] text-white">
+                                <span
+                                  className={`rounded px-2 py-0.5 text-[10px] ${
+                                    photo.published === false
+                                      ? "bg-rose-600/95 text-white"
+                                      : "bg-sky-600/95 text-white"
+                                  }`}
+                                >
                                   {photo.published === false ? "Draft" : "Live"}
                                 </span>
                                 {photo.featured && photo.featuredOrder === 0 ? (
@@ -2750,145 +3589,419 @@ export default function AdminDashboard() {
                                 className="h-4 w-4 accent-foreground"
                               />
                             </label>
-                            <span
-                              aria-hidden="true"
-                              title={canManualReorder ? "Drag card to reorder" : "Enable Manual Order to drag"}
-                              className={`inline-flex items-center ${canManualReorder ? "text-muted/80" : "text-muted/45"}`}
-                            >
-                              <svg
-                                viewBox="0 0 12 12"
-                                className="h-4 w-4"
-                                fill="currentColor"
+                            {canManualReorder ? (
+                              <button
+                                type="button"
+                                draggable
+                                onDragStart={(event) => {
+                                  event.stopPropagation();
+                                  handleCardDragStart(event, photo.photoId);
+                                }}
+                                onDragEnd={handleCardDragEnd}
+                                onMouseDown={(event) => event.stopPropagation()}
+                                onClick={(event) => event.preventDefault()}
+                                title="Drag card to reorder"
+                                className="inline-flex cursor-grab items-center rounded p-1 text-muted/80 hover:bg-zinc-100 active:cursor-grabbing"
                               >
-                                <circle cx="3" cy="2.5" r="0.9" />
-                                <circle cx="3" cy="6" r="0.9" />
-                                <circle cx="3" cy="9.5" r="0.9" />
-                                <circle cx="9" cy="2.5" r="0.9" />
-                                <circle cx="9" cy="6" r="0.9" />
-                                <circle cx="9" cy="9.5" r="0.9" />
-                              </svg>
-                            </span>
+                                <svg
+                                  viewBox="0 0 12 12"
+                                  className="h-4 w-4"
+                                  fill="currentColor"
+                                >
+                                  <circle cx="3" cy="2.5" r="0.9" />
+                                  <circle cx="3" cy="6" r="0.9" />
+                                  <circle cx="3" cy="9.5" r="0.9" />
+                                  <circle cx="9" cy="2.5" r="0.9" />
+                                  <circle cx="9" cy="6" r="0.9" />
+                                  <circle cx="9" cy="9.5" r="0.9" />
+                                </svg>
+                              </button>
+                            ) : <span className="h-4 w-4" aria-hidden="true" />}
                           </div>
                         </article>
                       );
                     })}
                   </div>
 
-                  <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
-                    <p className="text-xs text-muted">
-                      Page {page} of {totalPages}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setPage((current) => Math.max(1, current - 1))}
-                        disabled={page <= 1}
-                        className="border border-line px-3 py-2 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground disabled:opacity-40"
-                      >
-                        Prev
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-                        disabled={page >= totalPages}
-                        className="border border-line px-3 py-2 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground disabled:opacity-40"
-                      >
-                        Next
-                      </button>
+                  {!isHomepageCollectionFilter ? (
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
+                      <p className="text-xs text-muted">
+                        Page {page} of {totalPages}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPage((current) => Math.max(1, current - 1))}
+                          disabled={page <= 1}
+                          className="border border-line px-3 py-2 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground disabled:opacity-40"
+                        >
+                          Prev
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                          disabled={page >= totalPages}
+                          className="border border-line px-3 py-2 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground disabled:opacity-40"
+                        >
+                          Next
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
                 </>
               )}
             </section>
 
-            <aside
-              ref={editorPanelRef}
-              className="border border-line bg-white p-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"
-            >
-              {!activePhoto || !activeDraft ? (
-                <p className="text-sm text-muted">Select a photo from the grid to edit details.</p>
-              ) : (
-                <div className="space-y-3">
-                  <div className="border-b border-line pb-2">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[10px] tracking-[0.12em] text-muted uppercase">Editing</p>
-                        <p className="mt-1 text-base">{activeDraft.title || activePhoto.title || "Untitled"}</p>
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {activePhoto.featured && activePhoto.featuredOrder === 0 ? (
-                            <span className="rounded bg-amber-500/90 px-2 py-0.5 text-[10px] tracking-[0.12em] text-black uppercase">
-                              Main Photo
-                            </span>
-                          ) : activePhoto.featured ? (
-                            <span className="rounded bg-emerald-600/90 px-2 py-0.5 text-[10px] tracking-[0.12em] text-white uppercase">
-                              On Homepage
-                            </span>
-                          ) : (
-                            <span className="rounded border border-line px-2 py-0.5 text-[10px] tracking-[0.12em] text-muted uppercase">
-                              Not On Homepage
-                            </span>
-                          )}
-                        </div>
-                      </div>
+            {isLibraryEditorOpen && activePhoto && activeDraft ? (
+              <div
+                className="fixed inset-0 z-50 bg-black/60 p-3 backdrop-blur-[2px] sm:p-4"
+                onMouseDown={(event) => {
+                  if (event.target === event.currentTarget) {
+                    requestLibraryEditorClose();
+                  }
+                }}
+              >
+                <div className="mx-auto flex h-full max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-line bg-[linear-gradient(180deg,rgba(255,255,255,0.99)_0%,rgba(251,248,243,0.96)_100%)] shadow-[0_24px_70px_rgba(0,0,0,0.28)]">
+                  <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3 sm:px-5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground">Library photo editor</p>
+                      <p className="mt-1 truncate text-base text-foreground/90">
+                        {activeDraft.title || activePhoto.title || "Untitled"}
+                      </p>
+                      <p className="mt-1 h-4 text-xs font-medium text-emerald-700/90">
+                        {autoSavingPhotoId === activePhoto.photoId ? "Auto-saving changes..." : " "}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => savePhoto(activePhoto.photoId)}
+                        onClick={restoreActivePhotoToOriginal}
                         disabled={
-                          !activeIsDirty ||
+                          !canRestoreOriginal ||
+                          autoSavingPhotoId === activePhoto.photoId ||
                           savingPhotoId === activePhoto.photoId ||
                           deletingPhotoId === activePhoto.photoId
                         }
-                        className="inline-flex h-9 w-9 items-center justify-center rounded border border-foreground/30 text-foreground transition-colors hover:border-foreground hover:bg-foreground hover:text-background disabled:cursor-not-allowed disabled:opacity-45"
-                        aria-label="Save photo changes"
-                        title={activeIsDirty ? "Save changes" : "No changes to save"}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-foreground/30 text-foreground hover:border-foreground hover:bg-foreground hover:text-background disabled:cursor-not-allowed disabled:opacity-45"
+                        aria-label="Revert to original values"
+                        title={canRestoreOriginal ? "Back to original values" : "No changes from original values"}
                       >
                         <span className="h-4 w-4">
-                          <SaveIcon />
+                          <UndoIcon />
                         </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={requestLibraryEditorClose}
+                        className="rounded-md border border-line px-3 py-2 text-xs hover:border-foreground"
+                      >
+                        Close
                       </button>
                     </div>
                   </div>
 
-                  <div className="relative aspect-[4/5] w-full overflow-hidden bg-zinc-200">
+                  <div ref={editorPanelRef} className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+                    <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+                      <aside className="space-y-3">
+                        <div className="relative aspect-[4/5] w-full overflow-hidden rounded-md border border-line bg-zinc-200">
+                          <Image
+                            src={activePhoto.thumbnailUrl || activePhoto.imageUrl}
+                            alt={activeDraft.alt || activeDraft.title || "Photo preview"}
+                            fill
+                            sizes="(max-width: 1024px) 100vw, 320px"
+                            className="object-contain"
+                          />
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {activePhoto.featured && activePhoto.featuredOrder === 0 ? (
+                            <span className="rounded bg-amber-500/90 px-2 py-0.5 text-xs text-black">Main photo</span>
+                          ) : activePhoto.featured ? (
+                            <span className="rounded bg-emerald-600/90 px-2 py-0.5 text-xs text-white">On homepage</span>
+                          ) : (
+                            <span className="rounded border border-line px-2 py-0.5 text-xs text-muted">Not on homepage</span>
+                          )}
+                          <span
+                            className={`rounded px-2 py-0.5 text-xs ${
+                              activeDraft.published
+                                ? "bg-sky-600/95 text-white"
+                                : "bg-rose-600/95 text-white"
+                            }`}
+                          >
+                            {activeDraft.published ? "Published" : "Draft"}
+                          </span>
+                        </div>
+                      </aside>
+
+                      <div className="space-y-4">
+                        <section className="rounded-md border border-line bg-white p-3">
+                          <h3 className="text-base font-semibold">Basic info</h3>
+                          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                            <label>
+                              Title
+                              <input
+                                value={activeDraft.title}
+                                onChange={(event) => handleDraftChange(activePhoto.photoId, "title", event.target.value)}
+                                className="mt-1.5 w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
+                                disabled={Boolean(savingPhotoId || deletingPhotoId)}
+                              />
+                            </label>
+
+                            <label>
+                              Alt text
+                              <input
+                                value={activeDraft.alt}
+                                onChange={(event) => handleDraftChange(activePhoto.photoId, "alt", event.target.value)}
+                                className="mt-1.5 w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
+                                disabled={Boolean(savingPhotoId || deletingPhotoId)}
+                              />
+                            </label>
+                          </div>
+                          <label className="mt-3 block">
+                            Collection
+                            <select
+                              value={activeDraft.collection}
+                              onChange={(event) => handleDraftChange(activePhoto.photoId, "collection", event.target.value)}
+                              className="mt-1.5 w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
+                              disabled={Boolean(savingPhotoId || deletingPhotoId)}
+                            >
+                              {collectionOptions.map((collection) => (
+                                <option key={collection} value={collection}>
+                                  {collection}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </section>
+
+                        <section className="rounded-md border border-line bg-white p-3">
+                          <h3 className="text-base font-semibold">Publishing</h3>
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            <ToggleSwitch
+                              label="On homepage"
+                              checked={Boolean(activeDraft.featured)}
+                              tone="homepage"
+                              onChange={(event) =>
+                                handleDraftChange(activePhoto.photoId, "featured", event.target.checked)
+                              }
+                              disabled={Boolean(savingPhotoId || deletingPhotoId)}
+                            />
+                            <ToggleSwitch
+                              label="Published"
+                              checked={Boolean(activeDraft.published)}
+                              tone="published"
+                              onChange={(event) =>
+                                handleDraftChange(activePhoto.photoId, "published", event.target.checked)
+                              }
+                              disabled={Boolean(savingPhotoId || deletingPhotoId)}
+                            />
+                          </div>
+                          <p className="mt-2 text-sm text-muted">
+                            Published photos appear on public pages. Unpublished photos stay private in Drafts.
+                          </p>
+                        </section>
+
+                        <section className="rounded-md border border-line bg-white p-3">
+                          <h3 className="text-base font-semibold">Content</h3>
+                          <label className="mt-3 block">
+                            Caption
+                            <textarea
+                              rows={4}
+                              value={activeDraft.caption}
+                              onChange={(event) => {
+                                handleDraftChange(activePhoto.photoId, "caption", event.target.value);
+                                resizeTextarea(event.target);
+                              }}
+                              className="mt-1.5 min-h-[120px] w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
+                              disabled={Boolean(savingPhotoId || deletingPhotoId)}
+                            />
+                          </label>
+
+                          <div className="mt-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-semibold">Poem</p>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setShowLibraryPoemFormatting((current) => !current)}
+                                  className={`rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
+                                    showLibraryPoemFormatting
+                                      ? "border-violet-300 bg-violet-50 text-violet-800 hover:bg-violet-100"
+                                      : "border-line bg-white text-foreground/85 hover:border-violet-300 hover:text-violet-700"
+                                  }`}
+                                >
+                                  {showLibraryPoemFormatting ? "Hide format" : "Format"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowLibraryPoemPreview((current) => !current)}
+                                  className={`rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
+                                    showLibraryPoemPreview
+                                      ? "border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100"
+                                      : "border-line bg-white text-foreground/85 hover:border-sky-300 hover:text-sky-700"
+                                  }`}
+                                >
+                                  {showLibraryPoemPreview ? "Hide preview" : "Preview"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => openPoemEditor("photo", activePhoto.photoId)}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-line hover:border-foreground"
+                                  aria-label="Expand poem editor"
+                                  title="Expand poem editor"
+                                >
+                                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+                                    <path d="M8 4H4v4" />
+                                    <path d="M16 4h4v4" />
+                                    <path d="M8 20H4v-4" />
+                                    <path d="M16 20h4v-4" />
+                                    <path d="M4 4l6 6" />
+                                    <path d="M20 4l-6 6" />
+                                    <path d="M4 20l6-6" />
+                                    <path d="M20 20l-6-6" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+                            {showLibraryPoemFormatting ? (
+                              <div className="mt-2">
+                                <PoemToolbar onInsert={insertPoemFormatting} />
+                              </div>
+                            ) : null}
+                            <textarea
+                              ref={editorPoemRef}
+                              rows={6}
+                              value={activeDraft.poem}
+                              onChange={(event) => {
+                                handleDraftChange(activePhoto.photoId, "poem", event.target.value);
+                                resizeTextarea(event.target);
+                              }}
+                              className="mt-1.5 min-h-[160px] w-full border border-line px-3 py-2.5 leading-7 whitespace-pre-wrap outline-none focus:border-foreground"
+                              disabled={Boolean(savingPhotoId || deletingPhotoId)}
+                            />
+                            {showLibraryPoemPreview ? (
+                              <PoemLivePreview
+                                value={activeDraft.poem}
+                                emptyText="Write text and click Preview to render italics/emphasis."
+                                className="mt-2"
+                              />
+                            ) : null}
+                          </div>
+                        </section>
+
+                        <section className="rounded-md border border-red-200 bg-red-50/60 p-3">
+                          <h3 className="text-sm font-semibold text-red-800">Danger zone</h3>
+                          <p className="mt-1 text-sm text-red-700">Delete permanently from library and cloud storage.</p>
+                          <button
+                            type="button"
+                            onClick={() => deletePhoto(activePhoto)}
+                            disabled={savingPhotoId === activePhoto.photoId || deletingPhotoId === activePhoto.photoId}
+                            className="mt-3 rounded-md border border-red-600 px-4 py-2 text-xs text-red-700 hover:bg-red-600 hover:text-white disabled:opacity-50"
+                          >
+                            {deletingPhotoId === activePhoto.photoId ? "Deleting..." : "Delete photo"}
+                          </button>
+                        </section>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+          </>
+          )}
+        </section>
+      )}
+
+      {isHomepageEditorOpen && homepageActivePhoto && homepageActiveDraft ? (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 p-3 backdrop-blur-[2px] sm:p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsHomepageEditorOpen(false);
+            }
+          }}
+        >
+          <div className="relative mx-auto flex h-full max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-line bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,245,240,0.95)_100%)] shadow-[0_24px_70px_rgba(0,0,0,0.28)]">
+            <span className="pointer-events-none absolute -top-5 left-10 h-10 w-10 rounded-full bg-white/95 shadow-[0_8px_16px_rgba(0,0,0,0.12)]" />
+            <span className="pointer-events-none absolute -top-8 left-20 h-12 w-12 rounded-full bg-white/95 shadow-[0_8px_16px_rgba(0,0,0,0.12)]" />
+
+            <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-5">
+              <div className="min-w-0">
+                <p className="text-[10px] tracking-[0.12em] text-muted uppercase">Homepage Photo Editor</p>
+                <p className="mt-1 truncate text-base font-semibold sm:text-lg">
+                  {homepageActiveDraft.title || homepageActivePhoto.title || "Untitled"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsHomepageEditorOpen(false)}
+                className="rounded border border-line px-3 py-2 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+              <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+                <div className="space-y-2">
+                  <div className="relative h-52 w-full overflow-hidden rounded border border-line bg-zinc-200 sm:h-64 lg:h-72">
                     <Image
-                      src={activePhoto.thumbnailUrl || activePhoto.imageUrl}
-                      alt={activeDraft.alt || activeDraft.title || "Photo preview"}
+                      src={homepageActivePhoto.thumbnailUrl || homepageActivePhoto.imageUrl}
+                      alt={homepageActiveDraft.alt || homepageActiveDraft.title || "Homepage photo preview"}
                       fill
-                      sizes="420px"
+                      sizes="(max-width: 1024px) 100vw, 240px"
                       className="object-cover"
                     />
                   </div>
+                  <p className="text-xs text-muted">
+                    Position #
+                    {Math.max(1, homepagePhotoIds.findIndex((id) => id === homepageActivePhoto.photoId) + 1)}
+                  </p>
+                  {homepagePhotoIds[0] === homepageActivePhoto.photoId ? (
+                    <span className="inline-flex rounded-full bg-amber-500/90 px-2 py-1 text-[10px] tracking-[0.12em] text-black uppercase">
+                      Main Photo
+                    </span>
+                  ) : (
+                    <span className="inline-flex rounded-full bg-emerald-600/90 px-2 py-1 text-[10px] tracking-[0.12em] text-white uppercase">
+                      On Homepage
+                    </span>
+                  )}
+                </div>
 
+                <div className="space-y-3">
                   <label className="text-[10px] tracking-[0.12em] uppercase">
                     Title
                     <input
-                      value={activeDraft.title}
-                      onChange={(event) => handleDraftChange(activePhoto.photoId, "title", event.target.value)}
-                      className="mt-1.5 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
-                      disabled={Boolean(savingPhotoId || deletingPhotoId)}
+                      value={homepageActiveDraft.title}
+                      onChange={(event) =>
+                        handleDraftChange(homepageActivePhoto.photoId, "title", event.target.value)
+                      }
+                      className="mt-1.5 w-full border border-line px-3 py-2 text-sm font-medium normal-case outline-none focus:border-foreground"
                     />
                   </label>
 
                   <label className="text-[10px] tracking-[0.12em] uppercase">
                     Alt Text
                     <input
-                      value={activeDraft.alt}
-                      onChange={(event) => handleDraftChange(activePhoto.photoId, "alt", event.target.value)}
+                      value={homepageActiveDraft.alt}
+                      onChange={(event) =>
+                        handleDraftChange(homepageActivePhoto.photoId, "alt", event.target.value)
+                      }
                       className="mt-1.5 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
-                      disabled={Boolean(savingPhotoId || deletingPhotoId)}
                     />
                   </label>
 
                   <label className="text-[10px] tracking-[0.12em] uppercase">
                     Collection
                     <select
-                      value={activeDraft.collection}
-                      onChange={(event) => handleDraftChange(activePhoto.photoId, "collection", event.target.value)}
+                      value={homepageActiveDraft.collection}
+                      onChange={(event) =>
+                        handleDraftChange(homepageActivePhoto.photoId, "collection", event.target.value)
+                      }
                       className="mt-1.5 w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
-                      disabled={Boolean(savingPhotoId || deletingPhotoId)}
                     >
                       {collectionOptions.map((collection) => (
-                        <option key={collection} value={collection}>
+                        <option key={`homepage-modal-${collection}`} value={collection}>
                           {collection}
                         </option>
                       ))}
@@ -2899,10 +4012,13 @@ export default function AdminDashboard() {
                     <label className="flex items-center gap-2 text-[10px] tracking-[0.12em] uppercase">
                       <input
                         type="checkbox"
-                        checked={Boolean(activeDraft.featured)}
-                        onChange={(event) =>
-                          handleDraftChange(activePhoto.photoId, "featured", event.target.checked)
-                        }
+                        checked
+                        onChange={(event) => {
+                          if (!event.target.checked) {
+                            removePhotoFromHomepage(homepageActivePhoto.photoId);
+                            setIsHomepageEditorOpen(false);
+                          }
+                        }}
                         className="h-4 w-4 accent-foreground"
                       />
                       On Homepage
@@ -2910,100 +4026,150 @@ export default function AdminDashboard() {
                     <label className="flex items-center gap-2 text-[10px] tracking-[0.12em] uppercase">
                       <input
                         type="checkbox"
-                        checked={Boolean(activeDraft.published)}
+                        checked={Boolean(homepageActiveDraft.published)}
                         onChange={(event) =>
-                          handleDraftChange(activePhoto.photoId, "published", event.target.checked)
+                          handleDraftChange(homepageActivePhoto.photoId, "published", event.target.checked)
                         }
                         className="h-4 w-4 accent-foreground"
                       />
                       Published
                     </label>
                   </div>
-                  <p className="text-xs leading-5 text-muted">
-                    Published photos can appear publicly. Use the Homepage tab to set exact homepage order and main photo.
-                    If unpublished, this photo stays private in Drafts.
-                  </p>
 
                   <label className="text-[10px] tracking-[0.12em] uppercase">
                     Caption
                     <textarea
                       rows={4}
-                      value={activeDraft.caption}
+                      value={homepageActiveDraft.caption}
                       onChange={(event) => {
-                        handleDraftChange(activePhoto.photoId, "caption", event.target.value);
+                        handleDraftChange(homepageActivePhoto.photoId, "caption", event.target.value);
                         resizeTextarea(event.target);
                       }}
                       className="mt-1.5 min-h-[120px] w-full border border-line px-3 py-2 text-sm normal-case outline-none focus:border-foreground"
-                      disabled={Boolean(savingPhotoId || deletingPhotoId)}
                     />
                   </label>
 
                   <div>
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-[10px] tracking-[0.12em] uppercase">Poem</p>
-                      <button
-                        type="button"
-                        onClick={() => openPoemEditor("photo", activePhoto.photoId)}
-                        className="border border-line px-2 py-1 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground"
-                      >
-                        Expand Editor
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowHomepagePoemPreview((current) => !current)}
+                          className={`border px-2 py-1 text-[10px] tracking-[0.12em] uppercase transition-colors ${
+                            showHomepagePoemPreview
+                              ? "border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100"
+                              : "border-line bg-white text-foreground/85 hover:border-sky-300 hover:text-sky-700"
+                          }`}
+                        >
+                          {showHomepagePoemPreview ? "Hide Preview" : "Preview"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openPoemEditor("photo", homepageActivePhoto.photoId)}
+                          className="border border-line px-2 py-1 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground"
+                        >
+                          Expand Editor
+                        </button>
+                      </div>
                     </div>
-                    <PoemToolbar onInsert={insertPoemFormatting} />
+                    <PoemToolbar onInsert={insertHomepagePoemFormatting} />
                     <textarea
                       ref={editorPoemRef}
-                      rows={6}
-                      value={activeDraft.poem}
+                      rows={7}
+                      value={homepageActiveDraft.poem}
                       onChange={(event) => {
-                        handleDraftChange(activePhoto.photoId, "poem", event.target.value);
+                        handleDraftChange(homepageActivePhoto.photoId, "poem", event.target.value);
                         resizeTextarea(event.target);
                       }}
-                      className="mt-1.5 min-h-[150px] w-full border border-line px-3 py-2 text-sm leading-6 whitespace-pre-wrap normal-case outline-none focus:border-foreground"
-                      disabled={Boolean(savingPhotoId || deletingPhotoId)}
+                      className="mt-1.5 min-h-[170px] w-full border border-line px-3 py-2 text-sm leading-6 whitespace-pre-wrap normal-case outline-none focus:border-foreground"
                     />
+                    {showHomepagePoemPreview ? (
+                      <PoemLivePreview
+                        value={homepageActiveDraft.poem}
+                        emptyText="Write text and click Preview to render italics/emphasis."
+                        className="mt-2"
+                      />
+                    ) : null}
                   </div>
 
                   <div className="flex flex-wrap gap-2 pt-1">
                     <button
                       type="button"
-                      onClick={() => savePhoto(activePhoto.photoId)}
-                      disabled={savingPhotoId === activePhoto.photoId || deletingPhotoId === activePhoto.photoId}
-                      className="border border-foreground px-4 py-2 text-[10px] tracking-[0.14em] uppercase transition-colors hover:bg-foreground hover:text-background disabled:opacity-50"
+                      onClick={() => savePhoto(homepageActivePhoto.photoId)}
+                      disabled={
+                        savingPhotoId === homepageActivePhoto.photoId ||
+                        deletingPhotoId === homepageActivePhoto.photoId
+                      }
+                      className="border border-foreground bg-foreground px-4 py-2 text-[10px] tracking-[0.14em] text-background uppercase transition-opacity hover:opacity-90 disabled:opacity-50"
                     >
-                      {savingPhotoId === activePhoto.photoId ? "Saving..." : "Save"}
+                      {savingPhotoId === homepageActivePhoto.photoId ? "Saving..." : "Save"}
                     </button>
-
                     <button
                       type="button"
                       onClick={() =>
                         setDrafts((current) => ({
                           ...current,
-                          [activePhoto.photoId]: toDraft(activePhoto),
+                          [homepageActivePhoto.photoId]: toDraft(homepageActivePhoto),
                         }))
                       }
-                      disabled={savingPhotoId === activePhoto.photoId || deletingPhotoId === activePhoto.photoId}
-                      className="border border-line px-4 py-2 text-[10px] tracking-[0.14em] uppercase transition-colors hover:border-foreground disabled:opacity-50"
+                      className="border border-line px-4 py-2 text-[10px] tracking-[0.14em] uppercase transition-colors hover:border-foreground"
                     >
                       Reset
                     </button>
-
                     <button
                       type="button"
-                      onClick={() => deletePhoto(activePhoto)}
-                      disabled={savingPhotoId === activePhoto.photoId || deletingPhotoId === activePhoto.photoId}
-                      className="border border-red-600 px-4 py-2 text-[10px] tracking-[0.14em] text-red-700 uppercase transition-colors hover:bg-red-600 hover:text-white disabled:opacity-50"
+                      onClick={() => {
+                        removePhotoFromHomepage(homepageActivePhoto.photoId);
+                        setIsHomepageEditorOpen(false);
+                      }}
+                      className="border border-line px-4 py-2 text-[10px] tracking-[0.14em] uppercase transition-colors hover:border-foreground"
                     >
-                      {deletingPhotoId === activePhoto.photoId ? "Deleting..." : "Delete"}
+                      Remove From Homepage
                     </button>
+                    {homepageActiveIsDirty ? (
+                      <p className="self-center text-xs text-amber-700">Unsaved changes</p>
+                    ) : null}
                   </div>
                 </div>
-              )}
-            </aside>
+              </div>
+            </div>
           </div>
-          </>
-          )}
-        </section>
-      )}
+        </div>
+      ) : null}
+
+      {reorderConfirmPrompt.open ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-[1px]">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Confirm reorder change"
+            className="w-full max-w-md rounded-xl border border-line bg-white p-5 shadow-[0_18px_54px_rgba(0,0,0,0.25)]"
+          >
+            <h3 className="text-base font-semibold">Apply new order?</h3>
+            <p className="mt-3 text-sm leading-6 text-foreground/80">
+              You are viewing <strong>{reorderConfirmPrompt.sortLabel}</strong>. Reordering now will save a new manual order for this view.
+            </p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={cancelReorderConfirm}
+                className="rounded-md border border-line px-3 py-2 text-xs hover:border-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmReorderChange}
+                disabled={isSavingOrder}
+                className="rounded-md border border-foreground bg-foreground px-3 py-2 text-xs text-background disabled:opacity-50"
+              >
+                {isSavingOrder ? "Applying..." : "Apply reorder"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {workspaceSwitchPrompt.open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[1px]">
@@ -3048,6 +4214,46 @@ export default function AdminDashboard() {
                   {isSavingBeforeWorkspaceSwitch ? "Saving..." : "Save & Continue"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {libraryExitPrompt.open ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-[1px]">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Unsaved photo edits before closing modal"
+            className="w-full max-w-md rounded-xl border border-line bg-white p-5 shadow-[0_18px_54px_rgba(0,0,0,0.25)]"
+          >
+            <h3 className="text-sm tracking-[0.14em] uppercase">Unsaved Edits</h3>
+            <p className="mt-3 text-sm leading-6 text-foreground/80">
+              You have unsaved edits on this photo. Save before closing the editor?
+            </p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={cancelLibraryExitPrompt}
+                className="border border-line px-3 py-2 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground"
+              >
+                Keep Editing
+              </button>
+              <button
+                type="button"
+                onClick={discardAndCloseLibraryEditor}
+                className="border border-line px-3 py-2 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground"
+              >
+                Exit Without Saving
+              </button>
+              <button
+                type="button"
+                onClick={saveAndCloseLibraryEditor}
+                disabled={Boolean(savingPhotoId)}
+                className="border border-foreground bg-foreground px-3 py-2 text-[10px] tracking-[0.12em] text-background uppercase transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {savingPhotoId ? "Saving..." : "Save & Exit"}
+              </button>
             </div>
           </div>
         </div>
@@ -3117,13 +4323,26 @@ export default function AdminDashboard() {
                     : `Editing: ${drafts[poemModal.photoId]?.title || "Untitled"}`}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={closePoemEditor}
-                className="rounded border border-line px-3 py-2 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground"
-              >
-                Close
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowModalPoemPreview((current) => !current)}
+                  className={`rounded border px-3 py-2 text-[10px] tracking-[0.12em] uppercase transition-colors ${
+                    showModalPoemPreview
+                      ? "border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100"
+                      : "border-line bg-white text-foreground/85 hover:border-sky-300 hover:text-sky-700"
+                  }`}
+                >
+                  {showModalPoemPreview ? "Hide Preview" : "Preview"}
+                </button>
+                <button
+                  type="button"
+                  onClick={closePoemEditor}
+                  className="rounded border border-line px-3 py-2 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground"
+                >
+                  Close
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
@@ -3140,14 +4359,13 @@ export default function AdminDashboard() {
                 className="min-h-[300px] w-full border border-line px-3 py-3 text-sm leading-7 whitespace-pre-wrap normal-case outline-none focus:border-foreground"
               />
 
-              <details className="mt-4 border border-line bg-zinc-50">
-                <summary className="cursor-pointer px-3 py-2 text-[10px] tracking-[0.12em] text-muted uppercase">
-                  Preview Text
-                </summary>
-                <div className="border-t border-line px-3 py-3">
-                  <p className="text-sm leading-7 whitespace-pre-wrap">{modalPoemValue || "No poem text yet."}</p>
-                </div>
-              </details>
+              {showModalPoemPreview ? (
+                <PoemLivePreview
+                  value={modalPoemValue}
+                  emptyText="Write text and click Preview to render italics/emphasis."
+                  className="mt-4"
+                />
+              ) : null}
             </div>
           </div>
         </div>

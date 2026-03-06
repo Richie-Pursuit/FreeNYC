@@ -82,6 +82,7 @@ export async function GET(request) {
     const sort = normalizeSort(searchParams.get("sort") || "newest");
     const includeDrafts = parseBooleanQuery(searchParams.get("includeDrafts"));
     const published = normalizePublishedFilter(searchParams.get("published"));
+    const featuredOnly = parseBooleanQuery(searchParams.get("featured"));
 
     if (includeDrafts) {
       const authResult = await requireApiAuth();
@@ -91,7 +92,16 @@ export async function GET(request) {
     }
 
     const [result, collections] = await Promise.all([
-      listPhotos({ collection, q, limit, offset, sort, includeDrafts, publishedStatus: published }),
+      listPhotos({
+        collection,
+        q,
+        limit,
+        offset,
+        sort,
+        includeDrafts,
+        publishedStatus: published,
+        featuredOnly,
+      }),
       getCollections({ includeDrafts }),
     ]);
 
@@ -110,6 +120,7 @@ export async function GET(request) {
         sort,
         includeDrafts,
         published,
+        featuredOnly,
       },
     });
   } catch (error) {

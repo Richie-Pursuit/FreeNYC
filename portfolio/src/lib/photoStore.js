@@ -232,6 +232,7 @@ export async function listPhotos({
   sort = "newest",
   includeDrafts = false,
   publishedStatus = "all",
+  featuredOnly = false,
 } = {}) {
   await ensurePhotoStoreReady();
   const photos = await getPhotoCollection();
@@ -257,6 +258,10 @@ export async function listPhotos({
     });
   } else if (normalizedPublishedStatus === "draft") {
     filterClauses.push({ published: false });
+  }
+
+  if (featuredOnly) {
+    filterClauses.push({ featured: true });
   }
 
   if (selectedCollection !== "All") {
