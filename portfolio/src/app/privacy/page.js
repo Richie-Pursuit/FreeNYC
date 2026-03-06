@@ -1,7 +1,7 @@
 import Navbar from "@/components/Navbar";
 
 export const metadata = {
-  title: "Privacy Policy | Street Photography Portfolio",
+  title: "Privacy Policy",
 };
 
 const updatedAt = "March 4, 2026";

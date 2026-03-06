@@ -72,6 +72,7 @@ export default function Navbar() {
   const router = useRouter();
 
   const [adminPassword, setAdminPassword] = useState("");
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [adminError, setAdminError] = useState("");
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [adminGateOpen, setAdminGateOpen] = useState(false);
@@ -80,6 +81,7 @@ export default function Navbar() {
   useEffect(() => {
     setMobileNavOpen(false);
     setAdminGateOpen(false);
+    setShowAdminPassword(false);
     setAdminError("");
   }, [pathname]);
 
@@ -109,6 +111,7 @@ export default function Navbar() {
       }).then(parseJsonResponse);
 
       setAdminPassword("");
+      setShowAdminPassword(false);
       setAdminGateOpen(false);
       router.push("/login?callbackUrl=/admin");
     } catch (error) {
@@ -131,12 +134,21 @@ export default function Navbar() {
       </p>
       <form onSubmit={handleUnlock} className="mt-2 space-y-2">
         <input
-          type="password"
+          type={showAdminPassword ? "text" : "password"}
           value={adminPassword}
           onChange={(event) => setAdminPassword(event.target.value)}
           placeholder="Enter password"
           className="w-full border border-foreground/25 bg-white px-3 py-2 text-sm text-foreground placeholder:text-foreground/45 outline-none focus:border-foreground focus:ring-2 focus:ring-foreground/15"
         />
+        <label className="flex items-center gap-2 text-[10px] tracking-[0.12em] text-foreground/70 uppercase">
+          <input
+            type="checkbox"
+            checked={showAdminPassword}
+            onChange={(event) => setShowAdminPassword(event.target.checked)}
+            className="h-3.5 w-3.5 accent-foreground"
+          />
+          Show Password
+        </label>
         <button
           type="submit"
           className="w-full border border-foreground bg-foreground px-3 py-2 text-[10px] tracking-[0.14em] text-background uppercase transition-opacity hover:opacity-90 disabled:opacity-50"
@@ -145,6 +157,9 @@ export default function Navbar() {
           {isUnlocking ? "Checking..." : "Unlock"}
         </button>
       </form>
+      <p className="mt-2 text-[10px] leading-4 text-foreground/60">
+        Step 1: unlock with password. Step 2: continue with Google sign-in.
+      </p>
       {adminError ? <p className="mt-2 text-xs text-red-700">{adminError}</p> : null}
     </div>
   );
@@ -185,6 +200,7 @@ export default function Navbar() {
                 type="button"
                 onClick={() => {
                   setAdminGateOpen((open) => !open);
+                  setShowAdminPassword(false);
                   setAdminError("");
                 }}
                 className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground/25 bg-white/92 text-foreground/90 shadow-[0_8px_24px_rgba(0,0,0,0.07)] transition-colors hover:bg-white hover:text-foreground"

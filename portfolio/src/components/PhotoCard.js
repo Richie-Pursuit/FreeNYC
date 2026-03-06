@@ -73,7 +73,7 @@ export default function PhotoCard({
             {photo.collection}
           </p>
           {photo.poem ? (
-            <p className="mt-2 max-w-lg text-xs text-white/90 break-words sm:mt-3 sm:text-sm">
+            <p className="mt-2 max-w-lg text-xs whitespace-pre-line text-white/90 break-words sm:mt-3 sm:text-sm">
               {photo.poem}
             </p>
           ) : null}

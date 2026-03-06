@@ -8,6 +8,7 @@ import {
 import { requireApiAuth } from "@/lib/auth";
 import { createPhoto } from "@/lib/photoStore";
 import { internalApiError } from "@/lib/api-errors";
+import { verifyCsrfRequest } from "@/lib/csrf";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,27 @@ function isValidHttpUrl(value) {
   }
 }
 
+function isCloudinaryAssetUrl(value, cloudName) {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "https:") {
+      return false;
+    }
+
+    if (parsed.hostname !== "res.cloudinary.com") {
+      return false;
+    }
+
+    if (!cloudName) {
+      return true;
+    }
+
+    return parsed.pathname.startsWith(`/${cloudName}/`);
+  } catch {
+    return false;
+  }
+}
+
 export async function GET() {
   const cloudinaryPublic = getCloudinaryPublicConfig();
   const cloudinaryServer = getCloudinaryServerConfig();
@@ -57,10 +79,12 @@ export async function GET() {
       publicId: "optional",
       thumbnailUrl: "optional",
       title: "optional",
+      alt: "optional",
       caption: "optional",
       poem: "optional",
       collection: "optional",
       featured: "optional boolean",
+      published: "optional boolean (default true)",
     },
     message:
       "This endpoint stores metadata after Cloudinary upload. Use /api/upload/signature to generate a signed upload request.",
@@ -72,6 +96,11 @@ export async function POST(request) {
     const authResult = await requireApiAuth();
     if (authResult.errorResponse) {
       return authResult.errorResponse;
+    }
+
+    const csrfResult = verifyCsrfRequest(request);
+    if (!csrfResult.ok) {
+      return csrfResult.errorResponse;
     }
 
     const body = await parseJson(request);
@@ -88,6 +117,10 @@ export async function POST(request) {
     }
 
     const cloudinary = getCloudinaryServerConfig();
+    if (!isCloudinaryAssetUrl(imageUrl, cloudinary.cloudName)) {
+      return badRequest("Uploaded image URL must be a valid Cloudinary asset URL.");
+    }
+
     const computedThumbnail =
       sanitizeText(body.thumbnailUrl) ||
       buildCloudinaryThumbnailUrl({
@@ -103,10 +136,12 @@ export async function POST(request) {
       thumbnailUrl: computedThumbnail,
       publicId: sanitizeText(body.publicId, 180),
       title: sanitizeText(body.title, 140),
+      alt: sanitizeText(body.alt, 220),
       caption: sanitizeText(body.caption, 600),
       poem: sanitizeText(body.poem, 600),
       collection: sanitizeText(body.collection, 80),
       featured: body.featured === true,
+      published: body.published !== false,
     });
 
     if (result.error) {

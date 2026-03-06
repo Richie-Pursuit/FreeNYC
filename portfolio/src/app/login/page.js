@@ -6,7 +6,7 @@ import GoogleSignInButton from "@/components/GoogleSignInButton";
 import Navbar from "@/components/Navbar";
 
 export const metadata = {
-  title: "Login | Street Photography Portfolio",
+  title: "Login",
 };
 
 export default async function LoginPage({ searchParams }) {

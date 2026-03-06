@@ -9,7 +9,7 @@ export default async function HomePage() {
   let photos = samplePhotos;
 
   try {
-    const result = await listPhotos({ limit: 300, sort: "manual" });
+    const result = await listPhotos({ limit: 300, sort: "curated" });
     photos = result.photos;
   } catch {
     photos = samplePhotos;

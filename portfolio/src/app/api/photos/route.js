@@ -3,10 +3,14 @@ import {
   createPhoto,
   getCollections,
   listPhotos,
+  moveCollection,
+  renameCollection,
   reorderPhotos,
+  setFeaturedPhotoOrder,
 } from "@/lib/photoStore";
 import { requireApiAuth } from "@/lib/auth";
 import { internalApiError } from "@/lib/api-errors";
+import { verifyCsrfRequest } from "@/lib/csrf";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +43,23 @@ function normalizeSort(value) {
   return "newest";
 }
 
+function parseBooleanQuery(value) {
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes";
+}
+
+function normalizePublishedFilter(value) {
+  if (value === "published" || value === "draft") {
+    return value;
+  }
+
+  return "all";
+}
+
 function badRequest(message) {
   return NextResponse.json({ error: message }, { status: 400 });
 }
@@ -59,10 +80,19 @@ export async function GET(request) {
     const limit = clamp(toInt(searchParams.get("limit"), 60), 1, 300);
     const offset = clamp(toInt(searchParams.get("offset"), 0), 0, 10000);
     const sort = normalizeSort(searchParams.get("sort") || "newest");
+    const includeDrafts = parseBooleanQuery(searchParams.get("includeDrafts"));
+    const published = normalizePublishedFilter(searchParams.get("published"));
+
+    if (includeDrafts) {
+      const authResult = await requireApiAuth();
+      if (authResult.errorResponse) {
+        return authResult.errorResponse;
+      }
+    }
 
     const [result, collections] = await Promise.all([
-      listPhotos({ collection, q, limit, offset, sort }),
-      getCollections(),
+      listPhotos({ collection, q, limit, offset, sort, includeDrafts, publishedStatus: published }),
+      getCollections({ includeDrafts }),
     ]);
 
     return NextResponse.json({
@@ -78,6 +108,8 @@ export async function GET(request) {
         collection,
         q,
         sort,
+        includeDrafts,
+        published,
       },
     });
   } catch (error) {
@@ -90,6 +122,11 @@ export async function POST(request) {
     const authResult = await requireApiAuth();
     if (authResult.errorResponse) {
       return authResult.errorResponse;
+    }
+
+    const csrfResult = verifyCsrfRequest(request);
+    if (!csrfResult.ok) {
+      return csrfResult.errorResponse;
     }
 
     const body = await parseJson(request);
@@ -121,24 +158,68 @@ export async function PATCH(request) {
       return authResult.errorResponse;
     }
 
+    const csrfResult = verifyCsrfRequest(request);
+    if (!csrfResult.ok) {
+      return csrfResult.errorResponse;
+    }
+
     const body = await parseJson(request);
     if (!body) {
       return badRequest("Request body must be valid JSON.");
     }
 
-    if (body.action !== "reorder") {
-      return badRequest("Unsupported action. Use action: 'reorder'.");
+    if (body.action === "reorder") {
+      const result = await reorderPhotos(body.photoIds);
+      if (result.error) {
+        return badRequest(result.error);
+      }
+
+      return NextResponse.json({
+        photos: result.photos,
+        message: "Photo order updated.",
+      });
     }
 
-    const result = await reorderPhotos(body.photoIds);
-    if (result.error) {
-      return badRequest(result.error);
+    if (body.action === "setFeaturedOrder") {
+      const result = await setFeaturedPhotoOrder(body.photoIds, { maxItems: 100 });
+      if (result.error) {
+        return badRequest(result.error);
+      }
+
+      return NextResponse.json({
+        photoIds: result.photoIds,
+        photos: result.photos,
+        message: "Homepage selection updated.",
+      });
     }
 
-    return NextResponse.json({
-      photos: result.photos,
-      message: "Photo order updated.",
-    });
+    if (body.action === "renameCollection") {
+      const result = await renameCollection(body.fromCollection, body.toCollection);
+      if (result.error) {
+        return badRequest(result.error);
+      }
+
+      return NextResponse.json({
+        modifiedCount: result.modifiedCount || 0,
+        message: "Collection renamed.",
+      });
+    }
+
+    if (body.action === "moveCollection") {
+      const result = await moveCollection(body.fromCollection, body.toCollection);
+      if (result.error) {
+        return badRequest(result.error);
+      }
+
+      return NextResponse.json({
+        modifiedCount: result.modifiedCount || 0,
+        message: "Collection moved.",
+      });
+    }
+
+    return badRequest(
+      "Unsupported action. Use one of: 'reorder', 'setFeaturedOrder', 'renameCollection', 'moveCollection'.",
+    );
   } catch (error) {
     return internalApiError(error);
   }

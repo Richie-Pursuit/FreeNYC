@@ -7,6 +7,10 @@ const MAX_ATTEMPTS = 8;
 const WINDOW_MS = 10 * 60 * 1000;
 const MAX_STORE_ENTRIES = 10000;
 
+function shouldRateLimit() {
+  return process.env.NODE_ENV === "production";
+}
+
 function getAttemptStore() {
   if (!globalThis[ATTEMPT_STORE_KEY]) {
     globalThis[ATTEMPT_STORE_KEY] = new Map();
@@ -124,7 +128,7 @@ export async function POST(request) {
 
   const now = Date.now();
   const clientId = getClientId(request);
-  if (isRateLimited(clientId, now)) {
+  if (shouldRateLimit() && isRateLimited(clientId, now)) {
     return NextResponse.json(
       { error: "Too many attempts. Please try again later." },
       { status: 429 },
@@ -132,15 +136,19 @@ export async function POST(request) {
   }
 
   const body = await parseJson(request);
-  const password = typeof body?.password === "string" ? body.password : "";
+  const password = typeof body?.password === "string" ? body.password.trim() : "";
 
   if (!password || !safeCompare(password, gatePassword)) {
-    markFailedAttempt(clientId, now);
+    if (shouldRateLimit()) {
+      markFailedAttempt(clientId, now);
+    }
     await delay(250);
     return NextResponse.json({ error: "Invalid credentials." }, { status: 401 });
   }
 
-  clearAttempts(clientId);
+  if (shouldRateLimit()) {
+    clearAttempts(clientId);
+  }
   const response = NextResponse.json({ ok: true, message: "Admin gate unlocked." });
   response.cookies.set({
     name: "admin_gate",

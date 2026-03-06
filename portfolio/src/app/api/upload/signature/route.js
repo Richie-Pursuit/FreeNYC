@@ -6,6 +6,7 @@ import {
   isCloudinaryConfigured,
 } from "@/lib/cloudinary";
 import { requireApiAuth } from "@/lib/auth";
+import { verifyCsrfRequest } from "@/lib/csrf";
 
 export const dynamic = "force-dynamic";
 
@@ -29,10 +30,18 @@ function sanitizeFolder(value) {
   return value.trim().replace(/[^a-zA-Z0-9/_-]/g, "").slice(0, 120);
 }
 
+const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
+const ALLOWED_UPLOAD_FORMATS = "jpg,jpeg,png,webp,avif";
+
 export async function POST(request) {
   const authResult = await requireApiAuth();
   if (authResult.errorResponse) {
     return authResult.errorResponse;
+  }
+
+  const csrfResult = verifyCsrfRequest(request);
+  if (!csrfResult.ok) {
+    return csrfResult.errorResponse;
   }
 
   if (!isCloudinaryConfigured()) {
@@ -54,6 +63,8 @@ export async function POST(request) {
   const paramsToSign = {
     folder,
     timestamp,
+    max_file_size: MAX_UPLOAD_BYTES,
+    allowed_formats: ALLOWED_UPLOAD_FORMATS,
   };
 
   const signature = createCloudinarySignature(paramsToSign, config.apiSecret);
@@ -67,6 +78,8 @@ export async function POST(request) {
     uploadUrl: getCloudinaryUploadUrl(config.cloudName),
     timestamp,
     folder,
+    maxFileSize: MAX_UPLOAD_BYTES,
+    allowedFormats: ALLOWED_UPLOAD_FORMATS,
     signature,
   });
 }

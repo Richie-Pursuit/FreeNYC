@@ -4,7 +4,7 @@ import { listPhotos } from "@/lib/photoStore";
 import { samplePhotos } from "@/lib/samplePhotos";
 
 export const metadata = {
-  title: "Gallery | Street Photography Portfolio",
+  title: "Gallery",
 };
 
 export const dynamic = "force-dynamic";

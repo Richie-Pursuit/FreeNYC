@@ -23,6 +23,14 @@ function sanitizeCollection(value) {
   return sanitizeText(value, DEFAULT_COLLECTION, 80);
 }
 
+function sanitizeOptionalCollection(value) {
+  return sanitizeText(value, "", 80);
+}
+
+function sanitizeAltText(value, fallback = "") {
+  return sanitizeText(value, fallback, 220);
+}
+
 function sanitizePhotoId(value) {
   return sanitizeText(value, "", 120);
 }
@@ -48,6 +56,15 @@ function sanitizeBoolean(value, fallback = false) {
 function toNumber(value, fallback) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
+function sanitizeNonNegativeInteger(value, fallback = null) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) {
     return fallback;
   }
 
@@ -86,10 +103,13 @@ function toPhoto(doc) {
     thumbnailUrl: doc.thumbnailUrl || doc.imageUrl,
     publicId: doc.publicId || "",
     title: doc.title || "Untitled",
+    alt: doc.alt || doc.title || "Street photograph",
     caption: doc.caption || "",
     poem: doc.poem || "",
     collection: doc.collection || DEFAULT_COLLECTION,
     featured: Boolean(doc.featured),
+    featuredOrder: typeof doc.featuredOrder === "number" ? doc.featuredOrder : null,
+    published: doc.published !== false,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
     order: typeof doc.order === "number" ? doc.order : 0,
@@ -105,10 +125,13 @@ function buildSeedPhotoDoc(photo, index) {
     thumbnailUrl: photo.imageUrl,
     publicId: "",
     title: sanitizeText(photo.title, "Untitled", 140),
+    alt: sanitizeAltText(photo.alt, sanitizeText(photo.title, "Street photograph", 220)),
     caption: sanitizeText(photo.caption, "", 600),
     poem: sanitizeText(photo.poem, "", 600),
     collection: sanitizeCollection(photo.collection),
     featured: sanitizeBoolean(photo.featured, false),
+    featuredOrder: sanitizeBoolean(photo.featured, false) ? index : null,
+    published: sanitizeBoolean(photo.published, true),
     createdAt,
     updatedAt: createdAt,
     order: index,
@@ -130,6 +153,8 @@ async function ensurePhotoStoreReady() {
       await collection.createIndex({ order: 1 }, { name: "order_asc" });
       await collection.createIndex({ collection: 1, createdAt: -1 }, { name: "collection_createdAt" });
       await collection.createIndex({ featured: -1, order: 1 }, { name: "featured_order" });
+      await collection.createIndex({ featured: -1, featuredOrder: 1 }, { name: "featured_featuredOrder" });
+      await collection.createIndex({ published: 1, order: 1 }, { name: "published_order" });
 
       const seedOperations = samplePhotos.map((photo, index) => {
         const seedDoc = buildSeedPhotoDoc(photo, index);
@@ -170,12 +195,31 @@ async function getNextOrder(collection) {
   return latest.order + 1;
 }
 
-export async function getCollections() {
+async function getNextFeaturedOrder(collection) {
+  const latest = await collection
+    .find({ featured: true }, { projection: { featuredOrder: 1 } })
+    .sort({ featuredOrder: -1 })
+    .limit(1)
+    .next();
+
+  if (!latest || typeof latest.featuredOrder !== "number") {
+    return 0;
+  }
+
+  return latest.featuredOrder + 1;
+}
+
+export async function getCollections({ includeDrafts = false } = {}) {
   await ensurePhotoStoreReady();
   const collection = await getPhotoCollection();
-  const values = await collection.distinct("collection", {
+  const filter = {
     collection: { $exists: true, $ne: "" },
-  });
+  };
+  if (!includeDrafts) {
+    filter.$or = [{ published: true }, { published: { $exists: false } }];
+  }
+
+  const values = await collection.distinct("collection", filter);
 
   return values.sort((a, b) => a.localeCompare(b));
 }
@@ -186,6 +230,8 @@ export async function listPhotos({
   limit = 60,
   offset = 0,
   sort = "newest",
+  includeDrafts = false,
+  publishedStatus = "all",
 } = {}) {
   await ensurePhotoStoreReady();
   const photos = await getPhotoCollection();
@@ -195,24 +241,49 @@ export async function listPhotos({
   const safeOffset = Math.max(0, toNumber(offset, 0));
   const safeLimit = Math.min(300, Math.max(1, toNumber(limit, 60)));
   const normalizedSort = normalizeSort(sort);
+  const normalizedPublishedStatus =
+    publishedStatus === "published" || publishedStatus === "draft"
+      ? publishedStatus
+      : "all";
 
-  const filter = {};
+  const filterClauses = [];
+  if (!includeDrafts) {
+    filterClauses.push({
+      $or: [{ published: true }, { published: { $exists: false } }],
+    });
+  } else if (normalizedPublishedStatus === "published") {
+    filterClauses.push({
+      $or: [{ published: true }, { published: { $exists: false } }],
+    });
+  } else if (normalizedPublishedStatus === "draft") {
+    filterClauses.push({ published: false });
+  }
+
   if (selectedCollection !== "All") {
-    filter.collection = selectedCollection;
+    filterClauses.push({ collection: selectedCollection });
   }
 
   if (queryText) {
     const regex = new RegExp(escapeRegex(queryText), "i");
-    filter.$or = [{ title: regex }, { caption: regex }, { poem: regex }];
+    filterClauses.push({
+      $or: [{ title: regex }, { caption: regex }, { poem: regex }],
+    });
   }
+
+  const filter =
+    filterClauses.length === 0
+      ? {}
+      : filterClauses.length === 1
+        ? filterClauses[0]
+        : { $and: filterClauses };
 
   const sortSpec =
     normalizedSort === "oldest"
       ? { createdAt: 1 }
       : normalizedSort === "manual"
         ? { order: 1, createdAt: -1 }
-        : normalizedSort === "curated"
-          ? { featured: -1, order: 1, createdAt: -1 }
+      : normalizedSort === "curated"
+          ? { featured: -1, featuredOrder: 1, order: 1, createdAt: -1 }
         : { createdAt: -1 };
 
   const [items, total] = await Promise.all([
@@ -262,14 +333,21 @@ export async function createPhoto(input) {
     thumbnailUrl: sanitizeText(input.thumbnailUrl, "", 1200) || imageUrl,
     publicId: sanitizeText(input.publicId, "", 180),
     title: sanitizeText(input.title, "Untitled", 140),
+    alt: sanitizeAltText(input.alt, sanitizeText(input.title, "Street photograph", 220)),
     caption: sanitizeText(input.caption, "", 600),
     poem: sanitizeText(input.poem, "", 600),
     collection: sanitizeCollection(input.collection),
     featured: sanitizeBoolean(input.featured, false),
+    featuredOrder: null,
+    published: sanitizeBoolean(input.published, true),
     createdAt: now,
     updatedAt: now,
     order: nextOrder,
   };
+
+  if (photo.featured) {
+    photo.featuredOrder = await getNextFeaturedOrder(collection);
+  }
 
   try {
     await collection.insertOne(photo);
@@ -296,6 +374,10 @@ export async function updatePhotoById(photoId, updates) {
 
   await ensurePhotoStoreReady();
   const collection = await getPhotoCollection();
+  const existing = await collection.findOne({ photoId: safePhotoId });
+  if (!existing) {
+    return { error: "Photo not found.", status: 404 };
+  }
 
   const patch = {};
 
@@ -323,6 +405,13 @@ export async function updatePhotoById(photoId, updates) {
     patch.title = sanitizeText(updates.title, "Untitled", 140);
   }
 
+  if (updates.alt !== undefined) {
+    patch.alt = sanitizeAltText(
+      updates.alt,
+      updates.title !== undefined ? sanitizeText(updates.title, "Street photograph", 220) : "",
+    );
+  }
+
   if (updates.caption !== undefined) {
     patch.caption = sanitizeText(updates.caption, "", 600);
   }
@@ -336,15 +425,34 @@ export async function updatePhotoById(photoId, updates) {
   }
 
   if (updates.featured !== undefined) {
-    patch.featured = sanitizeBoolean(updates.featured, false);
+    const nextFeatured = sanitizeBoolean(updates.featured, false);
+    patch.featured = nextFeatured;
+    if (!nextFeatured) {
+      patch.featuredOrder = null;
+    } else if (!existing.featured && updates.featuredOrder === undefined) {
+      patch.featuredOrder = await getNextFeaturedOrder(collection);
+    }
+  }
+
+  if (updates.featuredOrder !== undefined) {
+    const safeFeaturedOrder = sanitizeNonNegativeInteger(updates.featuredOrder, null);
+    if (safeFeaturedOrder === null) {
+      return { error: "featuredOrder must be a non-negative integer." };
+    }
+    patch.featuredOrder = safeFeaturedOrder;
+    patch.featured = patch.featured !== false;
+  }
+
+  if (updates.published !== undefined) {
+    const nextPublished = sanitizeBoolean(updates.published, true);
+    patch.published = nextPublished;
+    if (!nextPublished) {
+      patch.featured = false;
+      patch.featuredOrder = null;
+    }
   }
 
   if (Object.keys(patch).length === 0) {
-    const existing = await collection.findOne({ photoId: safePhotoId });
-    if (!existing) {
-      return { error: "Photo not found.", status: 404 };
-    }
-
     return { photo: toPhoto(existing) };
   }
 
@@ -434,4 +542,118 @@ export async function reorderPhotos(photoIds) {
 
   const updated = await collection.find({}).sort({ order: 1, createdAt: -1 }).toArray();
   return { photos: updated.map(toPhoto) };
+}
+
+export async function setFeaturedPhotoOrder(photoIds, { maxItems = 100 } = {}) {
+  if (!Array.isArray(photoIds)) {
+    return { error: "photoIds must be an array." };
+  }
+
+  const requested = [];
+  const requestedSet = new Set();
+  for (const id of photoIds) {
+    const safeId = sanitizePhotoId(id);
+    if (!safeId || requestedSet.has(safeId)) {
+      continue;
+    }
+    requested.push(safeId);
+    requestedSet.add(safeId);
+  }
+
+  if (requested.length > maxItems) {
+    return { error: `Homepage selection supports up to ${maxItems} photos.` };
+  }
+
+  await ensurePhotoStoreReady();
+  const collection = await getPhotoCollection();
+
+  if (requested.length > 0) {
+    const matched = await collection
+      .find(
+        { photoId: { $in: requested } },
+        { projection: { photoId: 1, published: 1 } },
+      )
+      .toArray();
+
+    if (matched.length !== requested.length) {
+      return { error: "Some selected photos were not found." };
+    }
+
+    const unpublished = matched.find((doc) => doc.published === false);
+    if (unpublished) {
+      return { error: "Only published photos can be added to homepage." };
+    }
+  }
+
+  const now = new Date().toISOString();
+  await collection.updateMany(
+    { featured: true },
+    {
+      $set: {
+        featured: false,
+        featuredOrder: null,
+        updatedAt: now,
+      },
+    },
+  );
+
+  if (requested.length > 0) {
+    await collection.bulkWrite(
+      requested.map((photoId, index) => ({
+        updateOne: {
+          filter: { photoId },
+          update: {
+            $set: {
+              featured: true,
+              featuredOrder: index,
+              updatedAt: now,
+            },
+          },
+        },
+      })),
+      { ordered: true },
+    );
+  }
+
+  const featuredPhotos = await collection
+    .find({ featured: true, published: { $ne: false } })
+    .sort({ featuredOrder: 1, order: 1, createdAt: -1 })
+    .toArray();
+
+  return {
+    photoIds: featuredPhotos.map((photo) => photo.photoId),
+    photos: featuredPhotos.map(toPhoto),
+  };
+}
+
+export async function renameCollection(fromCollection, toCollection) {
+  const from = sanitizeOptionalCollection(fromCollection);
+  const to = sanitizeOptionalCollection(toCollection);
+
+  if (!from || !to) {
+    return { error: "Both fromCollection and toCollection are required." };
+  }
+
+  if (from === to) {
+    return { modifiedCount: 0 };
+  }
+
+  await ensurePhotoStoreReady();
+  const collection = await getPhotoCollection();
+  const now = new Date().toISOString();
+  const result = await collection.updateMany(
+    { collection: from },
+    {
+      $set: {
+        collection: to,
+        updatedAt: now,
+      },
+    },
+  );
+
+  return { modifiedCount: result.modifiedCount };
+}
+
+export async function moveCollection(fromCollection, toCollection) {
+  return renameCollection(fromCollection, toCollection);
 }

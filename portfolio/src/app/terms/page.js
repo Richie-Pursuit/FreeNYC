@@ -1,7 +1,7 @@
 import Navbar from "@/components/Navbar";
 
 export const metadata = {
-  title: "Terms of Use | Street Photography Portfolio",
+  title: "Terms of Use",
 };
 
 const updatedAt = "March 4, 2026";

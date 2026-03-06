@@ -6,6 +6,7 @@ import {
 } from "@/lib/photoStore";
 import { requireApiAuth } from "@/lib/auth";
 import { internalApiError } from "@/lib/api-errors";
+import { verifyCsrfRequest } from "@/lib/csrf";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,11 @@ export async function PATCH(request, { params }) {
       return authResult.errorResponse;
     }
 
+    const csrfResult = verifyCsrfRequest(request);
+    if (!csrfResult.ok) {
+      return csrfResult.errorResponse;
+    }
+
     const { photoId } = await params;
     if (typeof photoId !== "string" || !photoId.trim()) {
       return badRequest("photoId is required.");
@@ -63,10 +69,12 @@ export async function PATCH(request, { params }) {
       thumbnailUrl: body.thumbnailUrl,
       publicId: body.publicId,
       title: body.title,
+      alt: body.alt,
       caption: body.caption,
       poem: body.poem,
       collection: body.collection,
       featured: body.featured,
+      published: body.published,
     });
 
     if (result.error) {
@@ -88,6 +96,11 @@ export async function DELETE(_request, { params }) {
     const authResult = await requireApiAuth();
     if (authResult.errorResponse) {
       return authResult.errorResponse;
+    }
+
+    const csrfResult = verifyCsrfRequest(_request);
+    if (!csrfResult.ok) {
+      return csrfResult.errorResponse;
     }
 
     const { photoId } = await params;

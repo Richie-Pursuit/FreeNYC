@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { createPortal } from "react-dom";
 
@@ -67,6 +67,76 @@ function truncateText(value, maxLength = 220) {
   return `${value.slice(0, maxLength).trimEnd()}...`;
 }
 
+function renderInlineFormatting(text, keyPrefix) {
+  if (!text) {
+    return null;
+  }
+
+  const tokenPattern = /(\*\*[^*]+\*\*|\*[^*]+\*)/g;
+  const nodes = [];
+  let cursor = 0;
+  let matchIndex = 0;
+  let match = tokenPattern.exec(text);
+
+  while (match) {
+    const token = match[0];
+    const start = match.index;
+
+    if (start > cursor) {
+      nodes.push(
+        <Fragment key={`${keyPrefix}-plain-${matchIndex}`}>
+          {text.slice(cursor, start)}
+        </Fragment>,
+      );
+    }
+
+    if (token.startsWith("**") && token.endsWith("**")) {
+      const strongText = token.slice(2, -2).trim();
+      if (strongText) {
+        nodes.push(<strong key={`${keyPrefix}-strong-${matchIndex}`}>{strongText}</strong>);
+      }
+    } else if (token.startsWith("*") && token.endsWith("*")) {
+      const emphasisText = token.slice(1, -1).trim();
+      if (emphasisText) {
+        nodes.push(<em key={`${keyPrefix}-em-${matchIndex}`}>{emphasisText}</em>);
+      }
+    }
+
+    cursor = start + token.length;
+    matchIndex += 1;
+    match = tokenPattern.exec(text);
+  }
+
+  if (cursor < text.length) {
+    nodes.push(
+      <Fragment key={`${keyPrefix}-tail`}>
+        {text.slice(cursor)}
+      </Fragment>,
+    );
+  }
+
+  if (nodes.length === 0) {
+    return text;
+  }
+
+  return nodes;
+}
+
+function renderFormattedText(value, keyPrefix) {
+  if (!value) {
+    return null;
+  }
+
+  const lines = value.split("\n");
+
+  return lines.map((line, lineIndex) => (
+    <Fragment key={`${keyPrefix}-line-${lineIndex}`}>
+      {renderInlineFormatting(line, `${keyPrefix}-line-${lineIndex}`)}
+      {lineIndex < lines.length - 1 ? <br /> : null}
+    </Fragment>
+  ));
+}
+
 export default function LightboxViewer({
   isOpen = true,
   photo,
@@ -79,7 +149,7 @@ export default function LightboxViewer({
 }) {
   const [showHelp, setShowHelp] = useState(false);
   const [showDetails, setShowDetails] = useState(true);
-  const [expandedPhotoKey, setExpandedPhotoKey] = useState("");
+  const [readingPhotoKey, setReadingPhotoKey] = useState("");
   const touchStartRef = useRef(null);
 
   const safePhotos = useMemo(() => {
@@ -114,13 +184,13 @@ export default function LightboxViewer({
   const currentPhoto = currentIndex >= 0 ? safePhotos[currentIndex] : null;
   const currentPhotoKey =
     toText(currentPhoto?.photoId) || `photo-${currentIndex >= 0 ? currentIndex : "none"}`;
-  const showFullText = expandedPhotoKey === currentPhotoKey;
+  const showReadingView = readingPhotoKey === currentPhotoKey;
   const titleText = toText(currentPhoto?.title) || "Untitled";
   const collectionText = toText(currentPhoto?.collection) || "Street Photography";
   const captionText = toText(currentPhoto?.caption);
   const poemText = toText(currentPhoto?.poem);
-  const trimmedCaption = showFullText ? captionText : truncateText(captionText, 230);
-  const trimmedPoem = showFullText ? poemText : truncateText(poemText, 180);
+  const trimmedCaption = truncateText(captionText, 230);
+  const trimmedPoem = truncateText(poemText, 180);
   const canExpandText =
     (captionText && captionText.length > 230) || (poemText && poemText.length > 180);
   const thumbnailWindow = useMemo(() => {
@@ -156,11 +226,23 @@ export default function LightboxViewer({
   }, [isOpen]);
 
   useEffect(() => {
-    if (!currentPhoto?.imageUrl) {
+    if (!isOpen || !currentPhoto?.imageUrl) {
       return undefined;
     }
 
     const handleKeyDown = (event) => {
+      const target = event.target;
+      const tagName = target?.tagName?.toLowerCase?.();
+      const isEditableTarget =
+        target?.isContentEditable ||
+        tagName === "input" ||
+        tagName === "textarea" ||
+        tagName === "select";
+
+      if (isEditableTarget) {
+        return;
+      }
+
       if (event.key === "Escape") {
         if (typeof onClose === "function") {
           onClose();
@@ -184,11 +266,17 @@ export default function LightboxViewer({
         event.preventDefault();
         setShowDetails((current) => !current);
       }
+      if (event.key.toLowerCase() === "m") {
+        event.preventDefault();
+        setReadingPhotoKey((current) =>
+          current === currentPhotoKey ? "" : currentPhotoKey,
+        );
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [currentPhoto?.imageUrl, onClose, onPrevious, onNext]);
+  }, [isOpen, currentPhoto?.imageUrl, currentPhotoKey, onClose, onPrevious, onNext]);
 
   if (!isOpen || !currentPhoto?.imageUrl) {
     return null;
@@ -282,6 +370,43 @@ export default function LightboxViewer({
         </div>
       ) : null}
 
+      {showReadingView ? (
+        <div className="pointer-events-none absolute inset-0 z-30">
+          <div className="pointer-events-auto absolute right-3 bottom-16 left-3 rounded-2xl border border-white/20 bg-black/66 p-4 text-white shadow-2xl backdrop-blur-sm sm:bottom-20 sm:left-5 sm:max-w-[420px] sm:p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="display-font truncate text-xl leading-none sm:text-2xl">
+                  {titleText}
+                </p>
+                <p className="mt-1 text-[10px] tracking-[0.16em] text-white/65 uppercase">
+                  {collectionText}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReadingPhotoKey("")}
+                className="shrink-0 rounded-full border border-white/30 px-3 py-1.5 text-[10px] tracking-[0.14em] uppercase transition-colors hover:text-white"
+              >
+                Close Text
+              </button>
+            </div>
+
+            <div className="mt-3 max-h-[44vh] space-y-3 overflow-y-auto pr-1 sm:max-h-[52vh]">
+              {captionText ? (
+                <p className="text-sm leading-6 text-white/90">
+                  {renderFormattedText(captionText, `caption-full-${currentPhotoKey}`)}
+                </p>
+              ) : null}
+              {poemText ? (
+                <p className="text-sm leading-7 text-white/85">
+                  {renderFormattedText(poemText, `poem-full-${currentPhotoKey}`)}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="relative h-full">
         <div
           className="absolute inset-0"
@@ -344,8 +469,8 @@ export default function LightboxViewer({
         </div>
 
         {showDetails ? (
-          <footer className="pointer-events-none absolute right-0 bottom-0 left-0 z-10 flex max-h-[42vh] flex-col gap-2 overflow-y-auto bg-gradient-to-t from-black/86 via-black/52 to-transparent px-4 pt-14 pb-3 sm:px-8 sm:pt-18 sm:pb-4">
-            <div className="pointer-events-none">
+          <footer className="absolute right-0 bottom-0 left-0 z-10 flex max-h-[52vh] flex-col gap-2 bg-gradient-to-t from-black/86 via-black/52 to-transparent px-4 pt-14 pb-3 sm:px-8 sm:pt-18 sm:pb-4">
+            <div className="pointer-events-auto max-h-[24vh] overflow-y-auto pr-1">
               <p className="display-font text-xl leading-none break-words sm:text-2xl">
                 {titleText}
               </p>
@@ -354,30 +479,30 @@ export default function LightboxViewer({
               </p>
               {trimmedCaption ? (
                 <p className="mt-2 max-w-2xl text-xs leading-5 text-white/85 break-words sm:text-sm sm:leading-6">
-                  {trimmedCaption}
+                  {renderFormattedText(trimmedCaption, `caption-brief-${currentPhotoKey}`)}
                 </p>
               ) : null}
               {trimmedPoem ? (
-                <p className="mt-1.5 max-w-2xl text-xs leading-5 text-white/75 break-words italic sm:text-sm sm:leading-6">
-                  {trimmedPoem}
+                <p className="mt-1.5 max-w-2xl text-xs leading-5 text-white/75 break-words sm:text-sm sm:leading-6">
+                  {renderFormattedText(trimmedPoem, `poem-brief-${currentPhotoKey}`)}
                 </p>
               ) : null}
               {canExpandText ? (
                 <button
                   type="button"
                   onClick={() => {
-                    setExpandedPhotoKey((current) =>
+                    setReadingPhotoKey((current) =>
                       current === currentPhotoKey ? "" : currentPhotoKey,
                     );
                   }}
                   className="pointer-events-auto mt-2 inline-flex rounded-full border border-white/28 bg-black/35 px-3 py-1 text-[10px] tracking-[0.14em] text-white/85 uppercase transition-colors hover:text-white"
                 >
-                  {showFullText ? "Less Text" : "More Text"}
+                  {showReadingView ? "Close Text" : "More Text"}
                 </button>
               ) : null}
             </div>
 
-            <div className="pointer-events-none flex flex-wrap items-center justify-between gap-2 text-[10px] tracking-[0.16em] text-white/70 uppercase sm:text-[11px] sm:tracking-[0.18em]">
+            <div className="pointer-events-none flex shrink-0 flex-wrap items-center justify-between gap-2 text-[10px] tracking-[0.16em] text-white/70 uppercase sm:text-[11px] sm:tracking-[0.18em]">
               <p>
                 {currentIndex + 1}/{safePhotos.length} • Swipe or use ← →
               </p>

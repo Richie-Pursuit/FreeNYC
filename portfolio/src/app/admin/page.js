@@ -7,7 +7,7 @@ import AdminDashboard from "@/components/AdminDashboard";
 import AdminSessionControls from "@/components/AdminSessionControls";
 
 export const metadata = {
-  title: "Admin | Street Photography Portfolio",
+  title: "Admin",
 };
 
 export default async function AdminPage() {

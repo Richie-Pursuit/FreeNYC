@@ -2,7 +2,7 @@ import Navbar from "@/components/Navbar";
 import ContactForm from "@/components/ContactForm";
 
 export const metadata = {
-  title: "Contact | Street Photography Portfolio",
+  title: "Contact",
 };
 
 export default function ContactPage() {

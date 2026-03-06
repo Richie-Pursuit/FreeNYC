@@ -2,7 +2,7 @@ import Navbar from "@/components/Navbar";
 import Image from "next/image";
 
 export const metadata = {
-  title: "About | Street Photography Portfolio",
+  title: "About",
 };
 
 export default function AboutPage() {
