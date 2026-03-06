@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import Image from "next/image";
 
 const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
@@ -700,6 +701,10 @@ export default function AdminDashboard() {
         active: "border-rose-600 bg-rose-600 text-white shadow-[0_10px_24px_rgba(190,24,93,0.28)]",
         idle: "border-zinc-300 bg-white text-zinc-700 hover:border-rose-400 hover:text-rose-700",
       },
+      about: {
+        active: "border-violet-600 bg-violet-600 text-white shadow-[0_10px_24px_rgba(124,58,237,0.26)]",
+        idle: "border-zinc-300 bg-white text-zinc-700 hover:border-violet-400 hover:text-violet-700",
+      },
     };
 
     const tone = map[tabKey] || map.library;
@@ -1355,9 +1360,6 @@ export default function AdminDashboard() {
           cloudinaryForm.set("signature", signaturePayload.signature);
           if (signaturePayload.folder) {
             cloudinaryForm.set("folder", signaturePayload.folder);
-          }
-          if (signaturePayload.maxFileSize) {
-            cloudinaryForm.set("max_file_size", String(signaturePayload.maxFileSize));
           }
           if (signaturePayload.allowedFormats) {
             cloudinaryForm.set("allowed_formats", signaturePayload.allowedFormats);
@@ -2640,6 +2642,9 @@ export default function AdminDashboard() {
         >
           Drafts
         </button>
+        <Link href="/admin/about" className={getWorkspaceTabClass("about", false)}>
+          About
+        </Link>
       </div>
 
       {isUploadTab ? (

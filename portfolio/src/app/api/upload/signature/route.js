@@ -63,7 +63,6 @@ export async function POST(request) {
   const paramsToSign = {
     folder,
     timestamp,
-    max_file_size: MAX_UPLOAD_BYTES,
     allowed_formats: ALLOWED_UPLOAD_FORMATS,
   };
 
