@@ -157,6 +157,34 @@ function reorderPhotoList(photoList, fromPhotoId, toPhotoId) {
   return next;
 }
 
+function getEdgeAutoScrollDelta(pointerY, top, bottom, threshold, minSpeed, maxSpeed) {
+  if (
+    !Number.isFinite(pointerY) ||
+    !Number.isFinite(top) ||
+    !Number.isFinite(bottom) ||
+    bottom <= top
+  ) {
+    return 0;
+  }
+
+  const topZone = top + threshold;
+  const bottomZone = bottom - threshold;
+
+  if (pointerY < topZone) {
+    const ratio = Math.min(1, (topZone - pointerY) / threshold);
+    const eased = ratio * ratio;
+    return -Math.round(minSpeed + (maxSpeed - minSpeed) * eased);
+  }
+
+  if (pointerY > bottomZone) {
+    const ratio = Math.min(1, (pointerY - bottomZone) / threshold);
+    const eased = ratio * ratio;
+    return Math.round(minSpeed + (maxSpeed - minSpeed) * eased);
+  }
+
+  return 0;
+}
+
 async function parseJsonResponse(response) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -605,6 +633,78 @@ export default function AdminDashboard() {
       );
     });
   }, [homepageAvailablePhotos, homepageSearchTerm]);
+  const currentLibrarySortLabel = useMemo(
+    () => librarySortOptions.find((option) => option.value === librarySort)?.label || librarySort,
+    [librarySort, librarySortOptions],
+  );
+  const currentLibraryVisibilityLabel = useMemo(() => {
+    if (effectivePublishedFilter === "published") {
+      return "Published";
+    }
+    if (effectivePublishedFilter === "draft") {
+      return "Draft";
+    }
+    return "All";
+  }, [effectivePublishedFilter]);
+  const currentLibraryViewLabel = useMemo(() => {
+    if (collectionFilter === HOMEPAGE_COLLECTION_FILTER) {
+      return "Homepage";
+    }
+    if (collectionFilter === "All") {
+      return "All Collections";
+    }
+    return collectionFilter;
+  }, [collectionFilter]);
+  const libraryViewTone = useMemo(() => {
+    if (isDraftsTab) {
+      return {
+        chip: "border-rose-300 bg-rose-50 text-rose-800",
+        dot: "bg-rose-600",
+      };
+    }
+    if (isHomepageCollectionFilter) {
+      return {
+        chip: "border-emerald-300 bg-emerald-50 text-emerald-800",
+        dot: "bg-emerald-600",
+      };
+    }
+    if (collectionFilter !== "All") {
+      return {
+        chip: "border-amber-300 bg-amber-50 text-amber-800",
+        dot: "bg-amber-500",
+      };
+    }
+    return {
+      chip: "border-zinc-300 bg-zinc-50 text-zinc-700",
+      dot: "bg-zinc-500",
+    };
+  }, [collectionFilter, isDraftsTab, isHomepageCollectionFilter]);
+
+  const getWorkspaceTabClass = useCallback((tabKey, isActive) => {
+    const base =
+      "rounded-md border px-4 py-2 text-[12px] tracking-[0.14em] uppercase transition-all";
+    const map = {
+      upload: {
+        active: "border-sky-600 bg-sky-600 text-white shadow-[0_10px_24px_rgba(2,132,199,0.28)]",
+        idle: "border-zinc-300 bg-white text-zinc-700 hover:border-sky-400 hover:text-sky-700",
+      },
+      homepage: {
+        active: "border-emerald-600 bg-emerald-600 text-white shadow-[0_10px_24px_rgba(5,150,105,0.28)]",
+        idle: "border-zinc-300 bg-white text-zinc-700 hover:border-emerald-400 hover:text-emerald-700",
+      },
+      library: {
+        active: "border-amber-500 bg-amber-500 text-black shadow-[0_10px_24px_rgba(245,158,11,0.24)]",
+        idle: "border-zinc-300 bg-white text-zinc-700 hover:border-amber-400 hover:text-amber-700",
+      },
+      drafts: {
+        active: "border-rose-600 bg-rose-600 text-white shadow-[0_10px_24px_rgba(190,24,93,0.28)]",
+        idle: "border-zinc-300 bg-white text-zinc-700 hover:border-rose-400 hover:text-rose-700",
+      },
+    };
+
+    const tone = map[tabKey] || map.library;
+    return `${base} ${isActive ? tone.active : tone.idle}`;
+  }, []);
 
   const requestLibraryEditorClose = useCallback(() => {
     if (!isLibraryEditorOpen) {
@@ -1973,12 +2073,16 @@ export default function AdminDashboard() {
   const normalizeCollectionName = (value) => toStringValue(value).slice(0, 80);
 
   const autoScrollPageWhileDragging = useCallback((event) => {
-    const threshold = 140;
-    const speed = 24;
-    if (event.clientY < threshold) {
-      window.scrollBy(0, -speed);
-    } else if (event.clientY > window.innerHeight - threshold) {
-      window.scrollBy(0, speed);
+    const delta = getEdgeAutoScrollDelta(
+      event.clientY,
+      0,
+      window.innerHeight,
+      180,
+      2,
+      10,
+    );
+    if (delta !== 0) {
+      window.scrollBy(0, delta);
     }
   }, []);
 
@@ -1989,12 +2093,16 @@ export default function AdminDashboard() {
     }
 
     const bounds = container.getBoundingClientRect();
-    const threshold = 72;
-    const speed = 18;
-    if (event.clientY < bounds.top + threshold) {
-      container.scrollTop -= speed;
-    } else if (event.clientY > bounds.bottom - threshold) {
-      container.scrollTop += speed;
+    const delta = getEdgeAutoScrollDelta(
+      event.clientY,
+      bounds.top,
+      bounds.bottom,
+      96,
+      1,
+      7,
+    );
+    if (delta !== 0) {
+      container.scrollTop += delta;
     }
   }, []);
 
@@ -2507,44 +2615,28 @@ export default function AdminDashboard() {
         <button
           type="button"
           onClick={() => requestWorkspaceTabChange("upload")}
-          className={`rounded-md border bg-white/85 px-4 py-2 text-[12px] tracking-[0.14em] uppercase transition-all ${
-            isUploadTab
-              ? "border-foreground bg-foreground text-background shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
-              : "border-line hover:border-foreground hover:bg-white"
-          }`}
+          className={getWorkspaceTabClass("upload", isUploadTab)}
         >
           Upload
         </button>
         <button
           type="button"
           onClick={() => requestWorkspaceTabChange("homepage")}
-          className={`rounded-md border bg-white/85 px-4 py-2 text-[12px] tracking-[0.14em] uppercase transition-all ${
-            isHomepageTab
-              ? "border-foreground bg-foreground text-background shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
-              : "border-line hover:border-foreground hover:bg-white"
-          }`}
+          className={getWorkspaceTabClass("homepage", isHomepageTab)}
         >
           Homepage
         </button>
         <button
           type="button"
           onClick={() => requestWorkspaceTabChange("library")}
-          className={`rounded-md border bg-white/85 px-4 py-2 text-[12px] tracking-[0.14em] uppercase transition-all ${
-            activeTab === "library"
-              ? "border-foreground bg-foreground text-background shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
-              : "border-line hover:border-foreground hover:bg-white"
-          }`}
+          className={getWorkspaceTabClass("library", activeTab === "library")}
         >
           Library
         </button>
         <button
           type="button"
           onClick={() => requestWorkspaceTabChange("drafts")}
-          className={`rounded-md border bg-white/85 px-4 py-2 text-[12px] tracking-[0.14em] uppercase transition-all ${
-            isDraftsTab
-              ? "border-foreground bg-foreground text-background shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
-              : "border-line hover:border-foreground hover:bg-white"
-          }`}
+          className={getWorkspaceTabClass("drafts", isDraftsTab)}
         >
           Drafts
         </button>
@@ -3103,10 +3195,20 @@ export default function AdminDashboard() {
           ) : (
           <>
           <div className="rounded-2xl border border-line bg-[linear-gradient(180deg,rgba(255,255,255,0.99)_0%,rgba(252,249,244,0.96)_100%)] p-4 shadow-[0_12px_30px_rgba(0,0,0,0.08)]">
-            <div className="mb-3">
-              <h2 className="text-lg font-semibold text-foreground">
-                {isDraftsTab ? "Draft Library" : "Photo Library"}
-              </h2>
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">
+                  {isDraftsTab ? "Draft Library" : "Photo Library"}
+                </h2>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="inline-flex items-center rounded-full border border-zinc-300 bg-zinc-50 px-2.5 py-1 text-[10px] tracking-[0.12em] text-zinc-700 uppercase">
+                  Sort: {currentLibrarySortLabel}
+                </span>
+                <span className="inline-flex items-center rounded-full border border-zinc-300 bg-zinc-50 px-2.5 py-1 text-[10px] tracking-[0.12em] text-zinc-700 uppercase">
+                  Visibility: {currentLibraryVisibilityLabel}
+                </span>
+              </div>
             </div>
             <div className="flex flex-wrap items-end gap-3">
               <label className="grid w-full gap-1 text-sm sm:w-[340px]">
@@ -3127,7 +3229,11 @@ export default function AdminDashboard() {
                     setPage(1);
                     setCollectionFilter(event.target.value);
                   }}
-                  className="border border-line px-3 py-2.5 outline-none focus:border-foreground"
+                  className={`border px-3 py-2.5 outline-none focus:border-foreground ${
+                    isHomepageCollectionFilter
+                      ? "border-emerald-300 bg-emerald-50/60 text-emerald-900"
+                      : "border-line"
+                  }`}
                 >
                   <option value="All">All</option>
                   {!isDraftsTab ? (
@@ -3409,9 +3515,15 @@ export default function AdminDashboard() {
                   />
                   Select all on page
                 </label>
-                <p className="text-sm text-muted">
-                  {selectedCount > 0 ? `${selectedCount} selected` : "Click any photo card to edit"}
-                </p>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <span className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-semibold tracking-[0.08em] uppercase ${libraryViewTone.chip}`}>
+                    <span className={`h-2.5 w-2.5 rounded-full ${libraryViewTone.dot}`} aria-hidden="true" />
+                    View: {currentLibraryViewLabel}
+                  </span>
+                  <span className="inline-flex items-center rounded-full border border-zinc-300 bg-zinc-50 px-3.5 py-1.5 text-xs font-semibold tracking-[0.08em] text-zinc-700 uppercase">
+                    {selectedCount > 0 ? `${selectedCount} selected` : "Click card to edit"}
+                  </span>
+                </div>
               </div>
 
               <div className="mb-3 flex flex-wrap items-center gap-2">
