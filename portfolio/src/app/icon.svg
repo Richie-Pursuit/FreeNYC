@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <g stroke="#111111" stroke-width="0.85" stroke-linejoin="round">
+    <polygon points="60,60 56.88,45.33 60.00,3.00" fill="#F5F5F0" />
+    <polygon points="60,60 60.00,3.00 63.12,45.33" fill="#0A0A0A" />
+
+    <polygon points="60,60 68.60,47.71 88.28,31.72" fill="#0A0A0A" />
+    <polygon points="60,60 88.28,31.72 72.29,51.40" fill="#F5F5F0" />
+
+    <polygon points="60,60 74.67,56.88 117.00,60.00" fill="#F5F5F0" />
+    <polygon points="60,60 117.00,60.00 74.67,63.12" fill="#0A0A0A" />
+
+    <polygon points="60,60 72.29,68.60 88.28,88.28" fill="#0A0A0A" />
+    <polygon points="60,60 88.28,88.28 68.60,72.29" fill="#F5F5F0" />
+
+    <polygon points="60,60 63.12,74.67 60.00,117.00" fill="#F5F5F0" />
+    <polygon points="60,60 60.00,117.00 56.88,74.67" fill="#0A0A0A" />
+
+    <polygon points="60,60 51.40,72.29 31.72,88.28" fill="#0A0A0A" />
+    <polygon points="60,60 31.72,88.28 47.71,68.60" fill="#F5F5F0" />
+
+    <polygon points="60,60 45.33,63.12 3.00,60.00" fill="#F5F5F0" />
+    <polygon points="60,60 3.00,60.00 45.33,56.88" fill="#0A0A0A" />
+
+    <polygon points="60,60 47.71,51.40 31.72,31.72" fill="#0A0A0A" />
+    <polygon points="60,60 31.72,31.72 51.40,47.71" fill="#F5F5F0" />
+  </g>
+</svg>

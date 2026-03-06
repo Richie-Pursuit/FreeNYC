@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import BrandStarSymbol from "@/components/BrandStarSymbol";
 
 const navLinks = [
   { label: "Gallery", href: "/gallery" },
@@ -123,7 +124,7 @@ export default function Navbar() {
 
   const gatePanel = (
     <div
-      className={`absolute right-0 top-12 z-50 w-[min(260px,calc(100vw-1.5rem))] rounded-xl border border-foreground/15 bg-white/95 p-3 shadow-[0_12px_28px_rgba(0,0,0,0.12)] transition-all ${
+      className={`absolute right-0 top-[calc(100%+0.55rem)] z-50 w-[min(260px,calc(100vw-1.5rem))] rounded-xl border border-foreground/15 bg-white/95 p-3 shadow-[0_12px_28px_rgba(0,0,0,0.12)] transition-all ${
         adminGateOpen
           ? "pointer-events-auto translate-y-0 opacity-100"
           : "pointer-events-none translate-y-1 opacity-0"
@@ -165,29 +166,35 @@ export default function Navbar() {
   );
 
   return (
-    <header className="sticky top-0 z-40 border-b border-foreground/15 bg-[linear-gradient(180deg,rgba(246,246,243,0.97)_0%,rgba(246,246,243,0.91)_100%)] px-3 py-3 backdrop-blur-md sm:px-6 lg:px-12">
+    <header className="sticky top-0 z-40 border-b border-zinc-300/75 bg-[linear-gradient(180deg,rgba(249,249,247,0.98)_0%,rgba(249,249,247,0.93)_100%)] px-3 py-3 backdrop-blur-md shadow-[0_1px_0_rgba(0,0,0,0.04)] sm:px-6 lg:px-12">
       <div className="mx-auto w-full max-w-[1800px]">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-3">
           <Link
             href="/"
-            className="group relative inline-flex rounded-md px-2 py-1"
+            className="group relative inline-flex items-center gap-2 rounded-md px-1 py-0.5 sm:gap-2.5"
           >
-            <span className="logo-font relative z-10 text-lg leading-none text-foreground uppercase transition-transform duration-300 group-hover:scale-[1.02] sm:text-[1.7rem]">
+            <BrandStarSymbol
+              className="h-8 w-8 shrink-0 sm:h-9 sm:w-9"
+              fill="#F5F5F0"
+              split="#0A0A0A"
+              stroke="#111111"
+            />
+            <span className="logo-font relative z-10 text-[1.86rem] leading-none text-zinc-950 uppercase transition-transform duration-300 group-hover:scale-[1.015] sm:text-[2.5rem]">
               Free NYC
             </span>
-            <span className="pointer-events-none absolute right-1 bottom-1 left-1 h-2 -skew-x-12 rounded-sm bg-foreground/14 transition-colors duration-300 group-hover:bg-foreground/22 sm:h-2.5" />
+            <span className="pointer-events-none absolute right-1 bottom-[1px] left-[44px] h-[2px] rounded-full bg-gradient-to-r from-[#C9A227]/85 via-[#E7D57A]/90 to-zinc-900/80 sm:left-[52px]" />
           </Link>
 
-          <div className="flex items-center gap-2">
-            <nav className="hidden items-center gap-1.5 rounded-[1.1rem] border border-foreground/25 bg-white/92 p-1.5 shadow-[0_10px_28px_rgba(0,0,0,0.08)] md:flex">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <nav className="hidden items-center gap-6 lg:gap-8 md:flex">
               {navLinks.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`rounded-[0.9rem] px-3 py-2 text-[11px] tracking-[0.16em] uppercase transition-colors sm:px-4 ${
+                  className={`border-b-2 px-0 py-1 text-[16px] font-semibold tracking-[0.08em] uppercase transition-all ${
                     isActive(link.href)
-                      ? "bg-foreground text-background shadow-[inset_0_-2px_0_rgba(255,255,255,0.24)]"
-                      : "text-foreground/78 hover:bg-foreground/10 hover:text-foreground"
+                      ? "border-zinc-900 text-zinc-900"
+                      : "border-transparent text-zinc-700/88 hover:border-zinc-500/45 hover:text-zinc-900"
                   }`}
                 >
                   {link.label}
@@ -203,7 +210,7 @@ export default function Navbar() {
                   setShowAdminPassword(false);
                   setAdminError("");
                 }}
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground/25 bg-white/92 text-foreground/90 shadow-[0_8px_24px_rgba(0,0,0,0.07)] transition-colors hover:bg-white hover:text-foreground"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-zinc-300 bg-white text-zinc-800 shadow-[0_6px_18px_rgba(0,0,0,0.06)] transition-colors hover:border-zinc-900/40 hover:text-zinc-900"
                 aria-label="Admin access"
                 aria-expanded={adminGateOpen}
               >
@@ -215,7 +222,7 @@ export default function Navbar() {
             <button
               type="button"
               onClick={() => setMobileNavOpen((open) => !open)}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-foreground/25 bg-white/92 text-foreground/90 shadow-[0_8px_24px_rgba(0,0,0,0.07)] transition-colors hover:bg-white hover:text-foreground md:hidden"
+              className="flex h-9 w-9 items-center justify-center rounded-md border border-zinc-300 bg-white text-zinc-800 shadow-[0_6px_18px_rgba(0,0,0,0.06)] transition-colors hover:border-zinc-900/45 hover:text-zinc-900 md:hidden"
               aria-label="Toggle menu"
               aria-expanded={mobileNavOpen}
             >
@@ -225,15 +232,15 @@ export default function Navbar() {
         </div>
 
         {mobileNavOpen ? (
-          <div className="mt-3 grid gap-2 rounded-2xl border border-foreground/20 bg-white/92 p-2 shadow-[0_10px_24px_rgba(0,0,0,0.08)] md:hidden">
+          <div className="mt-3 grid gap-2 border-t border-zinc-300/65 pt-3 md:hidden">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`rounded-xl px-4 py-3 text-xs tracking-[0.14em] uppercase transition-colors ${
+                className={`border-b px-2 py-2 text-[15px] font-semibold tracking-[0.07em] uppercase transition-colors ${
                   isActive(link.href)
-                    ? "bg-foreground text-background"
-                    : "text-foreground/80 hover:bg-foreground/10 hover:text-foreground"
+                    ? "border-zinc-900 text-zinc-900"
+                    : "border-transparent text-zinc-700/90 hover:border-zinc-500/45 hover:text-zinc-900"
                 }`}
               >
                 {link.label}

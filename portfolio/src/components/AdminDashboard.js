@@ -369,7 +369,7 @@ function ToggleSwitch({
 }
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState("upload");
+  const [activeTab, setActiveTab] = useState("library");
 
   const [uploadForm, setUploadForm] = useState(defaultUploadForm);
   const [files, setFiles] = useState([]);
