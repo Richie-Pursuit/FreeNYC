@@ -151,6 +151,7 @@ export default function LightboxViewer({
   const [showDetails, setShowDetails] = useState(true);
   const [readingPhotoKey, setReadingPhotoKey] = useState("");
   const touchStartRef = useRef(null);
+  const dialogRef = useRef(null);
 
   const safePhotos = useMemo(() => {
     const incoming = Array.isArray(photos) ? photos : [];
@@ -278,6 +279,15 @@ export default function LightboxViewer({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, currentPhoto?.imageUrl, currentPhotoKey, onClose, onPrevious, onNext]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    if (dialogRef.current instanceof HTMLElement) {
+      dialogRef.current.focus();
+    }
+  }, [isOpen, currentPhotoKey]);
+
   if (!isOpen || !currentPhoto?.imageUrl) {
     return null;
   }
@@ -325,12 +335,19 @@ export default function LightboxViewer({
   };
 
   const content = (
-    <div className="fixed inset-0 z-50 bg-black/95 text-white">
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Photo viewer: ${titleText}`}
+      tabIndex={-1}
+      className="fixed inset-0 z-50 bg-black/95 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white focus:outline-none"
+    >
       <div className="absolute top-4 left-3 z-20 flex items-center gap-2 sm:top-6 sm:left-5">
         <button
           type="button"
           onClick={() => setShowHelp((current) => !current)}
-          className="rounded-full border border-white/25 bg-black/40 px-3 py-2 text-[10px] tracking-[0.14em] text-white/85 uppercase transition-colors hover:text-white sm:text-xs"
+          className="min-h-11 rounded-full border border-white/25 bg-black/40 px-3 py-2 text-[10px] tracking-[0.14em] text-white/85 uppercase transition-colors hover:text-white sm:text-xs"
           aria-label="Toggle keyboard and gesture help"
         >
           ? Help
@@ -338,7 +355,7 @@ export default function LightboxViewer({
         <button
           type="button"
           onClick={() => setShowDetails((current) => !current)}
-          className="rounded-full border border-white/25 bg-black/40 px-3 py-2 text-[10px] tracking-[0.14em] text-white/85 uppercase transition-colors hover:text-white sm:text-xs"
+          className="min-h-11 rounded-full border border-white/25 bg-black/40 px-3 py-2 text-[10px] tracking-[0.14em] text-white/85 uppercase transition-colors hover:text-white sm:text-xs"
           aria-label={showDetails ? "Hide photo details" : "Show photo details"}
         >
           {showDetails ? "Hide Info" : "Show Info"}
@@ -352,7 +369,7 @@ export default function LightboxViewer({
             onClose();
           }
         }}
-        className="absolute top-4 right-3 z-10 rounded-full border border-white/20 bg-black/40 px-3 py-2 text-[10px] tracking-[0.16em] text-white/85 uppercase transition-colors hover:text-white sm:top-6 sm:right-5 sm:text-xs"
+        className="absolute top-4 right-3 z-10 min-h-11 rounded-full border border-white/20 bg-black/40 px-3 py-2 text-[10px] tracking-[0.16em] text-white/85 uppercase transition-colors hover:text-white sm:top-6 sm:right-5 sm:text-xs"
       >
         Close (ESC)
       </button>
@@ -385,7 +402,7 @@ export default function LightboxViewer({
               <button
                 type="button"
                 onClick={() => setReadingPhotoKey("")}
-                className="shrink-0 rounded-full border border-white/30 px-3 py-1.5 text-[10px] tracking-[0.14em] uppercase transition-colors hover:text-white"
+                className="shrink-0 rounded-full border border-white/30 px-3 py-2 text-[10px] tracking-[0.14em] uppercase transition-colors hover:text-white"
               >
                 Close Text
               </button>
@@ -434,7 +451,7 @@ export default function LightboxViewer({
               }
             }}
             aria-label="Previous photo"
-            className="group absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full border border-white/25 bg-black/35 p-2.5 text-white/85 transition-all hover:border-white/55 hover:bg-black/60 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/40 sm:left-5 sm:p-3"
+            className="group absolute left-2 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/25 bg-black/35 text-white/85 transition-all hover:border-white/55 hover:bg-black/60 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/40 sm:left-5 sm:h-12 sm:w-12"
           >
             <ArrowIcon direction="left" />
           </button>
@@ -447,7 +464,7 @@ export default function LightboxViewer({
               }
             }}
             aria-label="Next photo"
-            className="group absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full border border-white/25 bg-black/35 p-2.5 text-white/85 transition-all hover:border-white/55 hover:bg-black/60 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/40 sm:right-5 sm:p-3"
+            className="group absolute right-2 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/25 bg-black/35 text-white/85 transition-all hover:border-white/55 hover:bg-black/60 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/40 sm:right-5 sm:h-12 sm:w-12"
           >
             <ArrowIcon direction="right" />
           </button>
@@ -469,7 +486,7 @@ export default function LightboxViewer({
         </div>
 
         {showDetails ? (
-          <footer className="absolute right-0 bottom-0 left-0 z-10 flex max-h-[52vh] flex-col gap-2 bg-gradient-to-t from-black/86 via-black/52 to-transparent px-4 pt-14 pb-3 sm:px-8 sm:pt-18 sm:pb-4">
+          <footer className="absolute right-0 bottom-0 left-0 z-10 flex max-h-[52vh] flex-col gap-2 bg-gradient-to-t from-black/86 via-black/52 to-transparent px-4 pt-14 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:px-8 sm:pt-18 sm:pb-[calc(env(safe-area-inset-bottom)+0.9rem)]">
             <div className="pointer-events-auto max-h-[24vh] overflow-y-auto pr-1">
               <p className="display-font text-xl leading-none break-words sm:text-2xl">
                 {titleText}

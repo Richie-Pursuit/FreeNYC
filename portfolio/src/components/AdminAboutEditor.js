@@ -472,7 +472,7 @@ export default function AdminAboutEditor() {
 
   if (loading) {
     return (
-      <main className="mx-auto w-full max-w-[1680px] px-4 py-8 sm:px-8 sm:py-10 lg:px-12">
+      <main id="main-content" className="mx-auto w-full max-w-[1680px] px-4 py-8 sm:px-8 sm:py-10 lg:px-12">
         <div className="rounded-2xl border border-line bg-white p-5">
           <p className="text-sm text-foreground/80">Loading About editor...</p>
         </div>
@@ -482,7 +482,7 @@ export default function AdminAboutEditor() {
 
   if (!draftSections) {
     return (
-      <main className="mx-auto w-full max-w-[1680px] px-4 py-8 sm:px-8 sm:py-10 lg:px-12">
+      <main id="main-content" className="mx-auto w-full max-w-[1680px] px-4 py-8 sm:px-8 sm:py-10 lg:px-12">
         <div className="rounded-2xl border border-red-200 bg-red-50 p-5">
           <p className="text-sm text-red-700">
             {message || "Unable to load About editor. Refresh and try again."}
@@ -496,7 +496,7 @@ export default function AdminAboutEditor() {
   const previewParagraphs = draftSections.body.paragraphs.filter((value) => value.trim());
 
   return (
-    <main className="mx-auto w-full max-w-[1680px] px-4 py-8 text-[16px] text-foreground sm:px-8 sm:py-10 lg:px-12">
+    <main id="main-content" className="mx-auto w-full max-w-[1680px] px-4 py-8 text-[16px] text-foreground sm:px-8 sm:py-10 lg:px-12">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-[12px] tracking-[0.18em] text-foreground/75 uppercase">Admin Workspace</p>

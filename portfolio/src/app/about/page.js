@@ -21,11 +21,16 @@ export default async function AboutPage() {
   const instagramHref = contact.instagramUrl || "";
   const instagramHandle = contact.instagramHandle || "";
   const emailAddress = contact.email || "";
+  const hasInstagramLink = Boolean(instagramHref);
+  const hasEmailLink = Boolean(emailAddress);
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="motion-page-enter mx-auto w-full max-w-[1400px] px-4 py-10 sm:px-8 sm:py-12 lg:px-12 lg:py-16">
+      <main
+        id="main-content"
+        className="motion-page-enter mx-auto w-full max-w-[1400px] px-4 py-10 sm:px-8 sm:py-12 lg:px-12 lg:py-16"
+      >
         <div className="grid gap-8 lg:grid-cols-[1.05fr_1.4fr] lg:gap-14">
           <aside className="lg:sticky lg:top-24 lg:self-start">
             <figure className="relative overflow-hidden border border-foreground/20 bg-zinc-100 shadow-[0_20px_60px_rgba(0,0,0,0.16)]">
@@ -34,13 +39,17 @@ export default async function AboutPage() {
                 {hero.imageUrl ? (
                   <Image
                     src={hero.imageUrl}
-                    alt={hero.alt}
+                    alt={hero.alt || "Portrait of the artist"}
                     fill
                     sizes="(max-width: 1024px) 100vw, 42vw"
                     className="object-cover"
                     priority
                   />
-                ) : null}
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-zinc-200 text-sm text-foreground/65">
+                    Portrait coming soon
+                  </div>
+                )}
               </div>
             </figure>
           </aside>
@@ -76,26 +85,44 @@ export default async function AboutPage() {
             ) : null}
 
             <div className="mt-8 grid gap-3 sm:mt-10 sm:grid-cols-2">
-              <a
-                href={instagramHref}
-                target="_blank"
-                rel="noreferrer"
-                className="group border border-foreground/20 bg-white px-5 py-4 transition-all hover:-translate-y-0.5 hover:border-foreground hover:shadow-[0_14px_24px_rgba(0,0,0,0.08)]"
-              >
-                <p className="text-[11px] font-semibold tracking-[0.16em] text-foreground/70 uppercase">
-                  {contact.instagramLabel}
-                </p>
-                <p className="mt-2 text-base font-semibold text-foreground">{instagramHandle}</p>
-              </a>
-              <a
-                href={`mailto:${emailAddress}`}
-                className="group border border-foreground/20 bg-white px-5 py-4 transition-all hover:-translate-y-0.5 hover:border-foreground hover:shadow-[0_14px_24px_rgba(0,0,0,0.08)]"
-              >
-                <p className="text-[11px] font-semibold tracking-[0.16em] text-foreground/70 uppercase">
-                  {contact.emailLabel}
-                </p>
-                <p className="mt-2 text-base font-semibold text-foreground">{emailAddress}</p>
-              </a>
+              {hasInstagramLink ? (
+                <a
+                  href={instagramHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group border border-foreground/20 bg-white px-5 py-4 transition-all hover:-translate-y-0.5 hover:border-foreground hover:shadow-[0_14px_24px_rgba(0,0,0,0.08)]"
+                >
+                  <p className="text-[11px] font-semibold tracking-[0.16em] text-foreground/70 uppercase">
+                    {contact.instagramLabel}
+                  </p>
+                  <p className="mt-2 text-base font-semibold text-foreground">{instagramHandle}</p>
+                </a>
+              ) : (
+                <div className="border border-foreground/20 bg-white px-5 py-4">
+                  <p className="text-[11px] font-semibold tracking-[0.16em] text-foreground/70 uppercase">
+                    {contact.instagramLabel || "Instagram"}
+                  </p>
+                  <p className="mt-2 text-base font-semibold text-foreground/60">Not provided</p>
+                </div>
+              )}
+              {hasEmailLink ? (
+                <a
+                  href={`mailto:${emailAddress}`}
+                  className="group border border-foreground/20 bg-white px-5 py-4 transition-all hover:-translate-y-0.5 hover:border-foreground hover:shadow-[0_14px_24px_rgba(0,0,0,0.08)]"
+                >
+                  <p className="text-[11px] font-semibold tracking-[0.16em] text-foreground/70 uppercase">
+                    {contact.emailLabel}
+                  </p>
+                  <p className="mt-2 text-base font-semibold text-foreground">{emailAddress}</p>
+                </a>
+              ) : (
+                <div className="border border-foreground/20 bg-white px-5 py-4">
+                  <p className="text-[11px] font-semibold tracking-[0.16em] text-foreground/70 uppercase">
+                    {contact.emailLabel || "Email"}
+                  </p>
+                  <p className="mt-2 text-base font-semibold text-foreground/60">Not provided</p>
+                </div>
+              )}
             </div>
           </section>
         </div>

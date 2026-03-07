@@ -166,7 +166,7 @@ export default function Navbar() {
   );
 
   return (
-    <header className="sticky top-0 z-40 border-b border-zinc-300/75 bg-[linear-gradient(180deg,rgba(249,249,247,0.98)_0%,rgba(249,249,247,0.93)_100%)] px-3 pt-4 pb-3 backdrop-blur-md shadow-[0_1px_0_rgba(0,0,0,0.04)] sm:px-6 sm:pt-4 sm:pb-3 lg:px-12 lg:pt-5 lg:pb-4">
+    <header className="sticky top-0 z-40 border-b border-zinc-300/75 bg-[linear-gradient(180deg,rgba(249,249,247,0.98)_0%,rgba(249,249,247,0.93)_100%)] px-3 pt-[calc(env(safe-area-inset-top)+0.9rem)] pb-3 backdrop-blur-md shadow-[0_1px_0_rgba(0,0,0,0.04)] sm:px-6 sm:pt-[calc(env(safe-area-inset-top)+1rem)] sm:pb-3 lg:px-12 lg:pt-[calc(env(safe-area-inset-top)+1.15rem)] lg:pb-4">
       <div className="mx-auto w-full max-w-[1800px]">
         <div className="flex items-center justify-between gap-3">
           <Link
@@ -185,12 +185,13 @@ export default function Navbar() {
           </Link>
 
           <div className="flex items-center gap-3 sm:gap-4">
-            <nav className="hidden items-center gap-6 lg:gap-8 md:flex">
+            <nav className="hidden items-center gap-6 lg:gap-8 md:flex" aria-label="Primary">
               {navLinks.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`border-b-2 px-0 py-1 text-[16px] font-semibold tracking-[0.08em] uppercase transition-all ${
+                  aria-current={isActive(link.href) ? "page" : undefined}
+                  className={`border-b-2 px-0 py-1.5 text-[16px] font-semibold tracking-[0.08em] uppercase transition-all ${
                     isActive(link.href)
                       ? "border-zinc-900 text-zinc-900"
                       : "border-transparent text-zinc-700/88 hover:border-zinc-500/45 hover:text-zinc-900"
@@ -209,7 +210,7 @@ export default function Navbar() {
                   setShowAdminPassword(false);
                   setAdminError("");
                 }}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-zinc-300 bg-white text-zinc-800 shadow-[0_6px_18px_rgba(0,0,0,0.06)] transition-colors hover:border-zinc-900/40 hover:text-zinc-900"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-300 bg-white text-zinc-800 shadow-[0_6px_18px_rgba(0,0,0,0.06)] transition-colors hover:border-zinc-900/40 hover:text-zinc-900"
                 aria-label="Admin access"
                 aria-expanded={adminGateOpen}
               >
@@ -221,7 +222,7 @@ export default function Navbar() {
             <button
               type="button"
               onClick={() => setMobileNavOpen((open) => !open)}
-              className="flex h-9 w-9 items-center justify-center rounded-md border border-zinc-300 bg-white text-zinc-800 shadow-[0_6px_18px_rgba(0,0,0,0.06)] transition-colors hover:border-zinc-900/45 hover:text-zinc-900 md:hidden"
+              className="flex h-11 w-11 items-center justify-center rounded-md border border-zinc-300 bg-white text-zinc-800 shadow-[0_6px_18px_rgba(0,0,0,0.06)] transition-colors hover:border-zinc-900/45 hover:text-zinc-900 md:hidden"
               aria-label="Toggle menu"
               aria-expanded={mobileNavOpen}
             >
@@ -236,7 +237,8 @@ export default function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`border-b px-2 py-2 text-[15px] font-semibold tracking-[0.07em] uppercase transition-colors ${
+                aria-current={isActive(link.href) ? "page" : undefined}
+                className={`border-b px-2 py-3 text-[15px] font-semibold tracking-[0.07em] uppercase transition-colors ${
                   isActive(link.href)
                     ? "border-zinc-900 text-zinc-900"
                     : "border-transparent text-zinc-700/90 hover:border-zinc-500/45 hover:text-zinc-900"

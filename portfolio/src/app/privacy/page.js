@@ -10,7 +10,7 @@ export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-8 sm:py-14">
+      <main id="main-content" className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-8 sm:py-14">
         <p className="text-[11px] tracking-[0.18em] text-muted uppercase">Privacy Policy</p>
         <h1 className="display-font mt-3 text-4xl leading-none sm:text-5xl">
           Privacy Policy

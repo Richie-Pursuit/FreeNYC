@@ -62,6 +62,9 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={logoFont.variable}>
       <body className="antialiased">
+        <a href="#main-content" className="skip-link">
+          Skip to main content
+        </a>
         <div className="flex min-h-screen flex-col">
           <div className="flex-1">{children}</div>
           <SiteFooter />

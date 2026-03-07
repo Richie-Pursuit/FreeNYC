@@ -152,7 +152,7 @@ export default function PhotoGallery({
   return (
     <>
       {showFilters ? (
-        <div className="mb-6 flex flex-wrap gap-2 sm:mb-8 sm:gap-3">
+        <div className="mb-6 flex flex-wrap gap-2 sm:mb-8 sm:gap-3" role="toolbar" aria-label="Filter photos by collection">
           {collections.map((collection) => {
             const isActive = collection === activeCollection;
 
@@ -161,7 +161,8 @@ export default function PhotoGallery({
                 key={collection}
                 type="button"
                 onClick={() => handleCollectionChange(collection)}
-                className={`border px-4 py-2.5 text-[11px] tracking-[0.14em] uppercase transition-colors sm:py-2 ${
+                aria-pressed={isActive}
+                className={`min-h-11 border px-4 py-2.5 text-[12px] tracking-[0.12em] uppercase transition-colors sm:py-2 ${
                   isActive
                     ? "border-foreground bg-foreground text-background"
                     : "border-line text-muted hover:border-foreground hover:text-foreground"
@@ -186,7 +187,7 @@ export default function PhotoGallery({
           <button
             type="button"
             onClick={handleLoadMore}
-            className="border border-foreground bg-white px-6 py-3 text-[11px] tracking-[0.16em] uppercase transition-colors hover:bg-foreground hover:text-background"
+            className="min-h-11 border border-foreground bg-white px-6 py-3 text-[12px] tracking-[0.14em] uppercase transition-colors hover:bg-foreground hover:text-background"
           >
             Load More
           </button>
