@@ -166,7 +166,7 @@ export default function Navbar() {
   );
 
   return (
-    <header className="sticky top-0 z-40 border-b border-zinc-300/75 bg-[linear-gradient(180deg,rgba(249,249,247,0.98)_0%,rgba(249,249,247,0.93)_100%)] px-3 py-3 backdrop-blur-md shadow-[0_1px_0_rgba(0,0,0,0.04)] sm:px-6 lg:px-12">
+    <header className="sticky top-0 z-40 border-b border-zinc-300/75 bg-[linear-gradient(180deg,rgba(249,249,247,0.98)_0%,rgba(249,249,247,0.93)_100%)] px-3 pt-4 pb-3 backdrop-blur-md shadow-[0_1px_0_rgba(0,0,0,0.04)] sm:px-6 sm:pt-4 sm:pb-3 lg:px-12 lg:pt-5 lg:pb-4">
       <div className="mx-auto w-full max-w-[1800px]">
         <div className="flex items-center justify-between gap-3">
           <Link
@@ -182,7 +182,6 @@ export default function Navbar() {
             <span className="logo-font relative z-10 text-[1.86rem] leading-none text-zinc-950 uppercase transition-transform duration-300 group-hover:scale-[1.015] sm:text-[2.5rem]">
               Free NYC
             </span>
-            <span className="pointer-events-none absolute right-1 bottom-[1px] left-[44px] h-[2px] rounded-full bg-gradient-to-r from-[#C9A227]/85 via-[#E7D57A]/90 to-zinc-900/80 sm:left-[52px]" />
           </Link>
 
           <div className="flex items-center gap-3 sm:gap-4">

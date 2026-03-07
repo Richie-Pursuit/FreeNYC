@@ -186,6 +186,43 @@ function getEdgeAutoScrollDelta(pointerY, top, bottom, threshold, minSpeed, maxS
   return 0;
 }
 
+function resolveDragPreviewElement(currentTarget) {
+  if (currentTarget && typeof currentTarget.closest === "function") {
+    const card = currentTarget.closest("article");
+    if (card instanceof HTMLElement) {
+      return card;
+    }
+  }
+
+  return currentTarget instanceof HTMLElement ? currentTarget : null;
+}
+
+function setCardDragPreview(event) {
+  const transfer = event?.dataTransfer;
+  if (!transfer) {
+    return;
+  }
+
+  const previewElement = resolveDragPreviewElement(event.currentTarget);
+  if (!previewElement) {
+    return;
+  }
+
+  const rect = previewElement.getBoundingClientRect();
+  const fallbackX = rect.width / 2;
+  const fallbackY = rect.height / 2;
+  const pointerX = Number.isFinite(event.clientX) ? event.clientX - rect.left : fallbackX;
+  const pointerY = Number.isFinite(event.clientY) ? event.clientY - rect.top : fallbackY;
+  const offsetX = Math.max(0, Math.min(rect.width - 1, pointerX));
+  const offsetY = Math.max(0, Math.min(rect.height - 1, pointerY));
+
+  try {
+    transfer.setDragImage(previewElement, offsetX, offsetY);
+  } catch {
+    // Ignore drag preview failures and allow default behavior.
+  }
+}
+
 async function parseJsonResponse(response) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -1745,6 +1782,7 @@ export default function AdminDashboard() {
       return;
     }
     setDraggingPhotoId(photoId);
+    setCardDragPreview(event);
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", photoId);
   };
@@ -2270,12 +2308,14 @@ export default function AdminDashboard() {
 
   const handleHomepageDragStart = (event, photoId) => {
     setHomepageDraggingPhotoId(photoId);
+    setCardDragPreview(event);
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", `sequence:${photoId}`);
   };
 
   const handleHomepagePoolDragStart = (event, photoId) => {
     setHomepageDraggingPhotoId(photoId);
+    setCardDragPreview(event);
     event.dataTransfer.effectAllowed = "copyMove";
     event.dataTransfer.setData("text/plain", `pool:${photoId}`);
   };
@@ -3085,6 +3125,7 @@ export default function AdminDashboard() {
                                   src={photo.thumbnailUrl || photo.imageUrl}
                                   alt={photo.alt || photo.title || "Homepage photo"}
                                   fill
+                                  draggable={false}
                                   sizes="(max-width: 640px) 72px, 96px"
                                   className="object-cover"
                                 />
@@ -3170,6 +3211,7 @@ export default function AdminDashboard() {
                           src={photo.thumbnailUrl || photo.imageUrl}
                           alt={photo.alt || photo.title || "Published photo"}
                           fill
+                          draggable={false}
                           sizes="(max-width: 640px) 88vw, (max-width: 1024px) 44vw, (max-width: 1536px) 30vw, 22vw"
                           className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                         />
@@ -3684,6 +3726,7 @@ export default function AdminDashboard() {
                               src={photo.thumbnailUrl || photo.imageUrl}
                               alt={photo.alt || photo.title || "Photo thumbnail"}
                               fill
+                              draggable={false}
                               sizes="(max-width: 1024px) 33vw, 20vw"
                               className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                             />
