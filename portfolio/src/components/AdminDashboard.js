@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -9,6 +9,8 @@ const CSRF_HEADER_NAME = "x-csrf-token";
 const PAGE_SIZE_OPTIONS = [24, 48, 96];
 const HOMEPAGE_MAX_PHOTOS = 100;
 const HOMEPAGE_COLLECTION_FILTER = "__homepage__";
+const COMPACT_ADMIN_MEDIA_QUERIES = ["(max-width: 767px)", "(pointer: coarse)"];
+const DEFAULT_COLLECTION = "City Life";
 const LIBRARY_SORT_OPTIONS = [
   { value: "newest", label: "Newest First" },
   { value: "oldest", label: "Oldest First" },
@@ -21,7 +23,7 @@ const defaultUploadForm = {
   alt: "",
   caption: "",
   poem: "",
-  collection: "City Life",
+  collection: DEFAULT_COLLECTION,
   featured: false,
   published: true,
 };
@@ -65,7 +67,7 @@ function toDraft(photo) {
     alt: photo?.alt || "",
     caption: photo?.caption || "",
     poem: photo?.poem || "",
-    collection: photo?.collection || "City Life",
+    collection: photo?.collection || DEFAULT_COLLECTION,
     featured: Boolean(photo?.featured),
     published: photo?.published !== false,
   };
@@ -156,6 +158,50 @@ function reorderPhotoList(photoList, fromPhotoId, toPhotoId) {
   const [moved] = next.splice(fromIndex, 1);
   next.splice(toIndex, 0, moved);
   return next;
+}
+
+function movePhotoListByOffset(photoList, photoId, offset) {
+  if (!Array.isArray(photoList) || !photoId || !Number.isInteger(offset) || offset === 0) {
+    return photoList;
+  }
+
+  const fromIndex = photoList.findIndex((item) => item.photoId === photoId);
+  if (fromIndex < 0) {
+    return photoList;
+  }
+
+  const toIndex = fromIndex + offset;
+  if (toIndex < 0 || toIndex >= photoList.length) {
+    return photoList;
+  }
+
+  const next = [...photoList];
+  const [moved] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, moved);
+  return next;
+}
+
+function subscribeToCompactAdminViewport(callback) {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  const mediaQueries = COMPACT_ADMIN_MEDIA_QUERIES.map((query) => window.matchMedia(query));
+  const handleChange = () => callback();
+
+  mediaQueries.forEach((mediaQuery) => mediaQuery.addEventListener("change", handleChange));
+
+  return () => {
+    mediaQueries.forEach((mediaQuery) => mediaQuery.removeEventListener("change", handleChange));
+  };
+}
+
+function getCompactAdminViewportSnapshot() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return COMPACT_ADMIN_MEDIA_QUERIES.some((query) => window.matchMedia(query).matches);
 }
 
 function getEdgeAutoScrollDelta(pointerY, top, bottom, threshold, minSpeed, maxSpeed) {
@@ -361,6 +407,200 @@ function TrashIcon() {
   );
 }
 
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+      <circle cx="11" cy="11" r="6" />
+      <path d="m20 20-4.2-4.2" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M7 7l10 10" />
+      <path d="M17 7 7 17" />
+    </svg>
+  );
+}
+
+function ActionsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M4 7h16" />
+      <path d="M4 12h16" />
+      <path d="M4 17h16" />
+      <circle cx="8" cy="7" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="12" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="11" cy="17" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="m4 20 4.2-1 9.7-9.7-3.2-3.2L5 15.8 4 20Z" />
+      <path d="m13.9 6.1 3.2 3.2" />
+    </svg>
+  );
+}
+
+function CaretDownIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="m7 10 5 5 5-5" />
+    </svg>
+  );
+}
+
+function ChipCloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M8 8l8 8" />
+      <path d="M16 8l-8 8" />
+    </svg>
+  );
+}
+
+function FilterSelectPill({
+  label,
+  value,
+  onChange,
+  disabled = false,
+  children,
+  displayValue,
+  valueClassName = "",
+}) {
+  return (
+    <div
+      className={`relative inline-flex h-9 items-center gap-2 rounded-full border border-[#e5e5e5] bg-white px-[14px] py-[6px] text-sm shadow-[0_6px_18px_rgba(0,0,0,0.04)] transition-colors hover:border-zinc-400 focus-within:border-zinc-900/40 focus-within:shadow-[0_0_0_3px_rgba(17,17,17,0.06)] ${
+        disabled ? "opacity-60" : ""
+      }`}
+    >
+      <span className="text-[10px] tracking-[0.14em] text-zinc-500 uppercase">{label}</span>
+      <div className="min-w-0 flex items-center gap-1.5">
+        <span className={`truncate text-[15px] font-medium text-zinc-900 ${valueClassName}`}>
+          {displayValue}
+        </span>
+        <span className="pointer-events-none flex h-4 w-4 items-center justify-center text-zinc-500">
+          <CaretDownIcon />
+        </span>
+      </div>
+
+      <select
+        aria-label={`${label} filter`}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        className="absolute inset-0 z-10 h-full w-full cursor-pointer rounded-full border-none bg-transparent p-0 opacity-0 outline-none ring-0 shadow-none appearance-none focus:border-none focus:outline-none focus:ring-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0"
+      >
+        {children}
+      </select>
+    </div>
+  );
+}
+
+function PanelSelectInput({
+  label,
+  value,
+  displayValue,
+  onChange,
+  disabled = false,
+  children,
+  className = "",
+}) {
+  return (
+    <label className={`grid gap-1.5 ${className}`}>
+      <span className="text-[11px] tracking-[0.12em] text-zinc-500 uppercase">{label}</span>
+      <div
+        className={`relative flex h-10 items-center justify-between rounded-2xl border border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,248,248,0.96)_100%)] px-4 shadow-[0_8px_22px_rgba(0,0,0,0.05)] transition-colors ${
+          disabled
+            ? "opacity-60"
+            : "hover:border-zinc-300 focus-within:border-zinc-900/35 focus-within:shadow-[0_0_0_3px_rgba(17,17,17,0.05)]"
+        }`}
+      >
+        <span className="truncate text-[14px] font-medium text-zinc-900">{displayValue}</span>
+        <span className="pointer-events-none flex h-4 w-4 items-center justify-center text-zinc-500">
+          <CaretDownIcon />
+        </span>
+
+        <select
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          className="absolute inset-0 h-full w-full cursor-pointer rounded-xl border-none bg-transparent p-0 opacity-0 outline-none ring-0 shadow-none appearance-none focus:border-none focus:outline-none focus:ring-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0"
+        >
+          {children}
+        </select>
+      </div>
+    </label>
+  );
+}
+
+function LibraryActionButton({
+  icon,
+  children,
+  variant = "secondary",
+  className = "",
+  ...props
+}) {
+  const variantClass =
+    variant === "primary"
+      ? "border-zinc-950 bg-zinc-950 text-white shadow-[0_10px_24px_rgba(17,17,17,0.18)] hover:border-zinc-800 hover:bg-zinc-800"
+      : variant === "danger"
+        ? "border-red-700 bg-red-600 text-white shadow-[0_10px_24px_rgba(220,38,38,0.22)] hover:border-red-600 hover:bg-red-500"
+        : "border-zinc-200 bg-white text-zinc-800 hover:border-zinc-400 hover:bg-zinc-50";
+
+  return (
+    <button
+      type="button"
+      className={`inline-flex min-h-[46px] items-center justify-start gap-2.5 rounded-2xl border px-4 py-3 text-left text-[13px] font-medium tracking-[0.01em] transition-all disabled:pointer-events-none disabled:opacity-45 ${variantClass} ${className}`}
+      {...props}
+    >
+      <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+        {icon}
+      </span>
+      <span>{children}</span>
+    </button>
+  );
+}
+
+function MoveArrowIcon({ direction = "up" }) {
+  const rotationClass =
+    direction === "down"
+      ? "rotate-180"
+      : direction === "left"
+        ? "-rotate-90"
+        : direction === "right"
+          ? "rotate-90"
+          : "";
+
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      aria-hidden="true"
+      className={rotationClass}
+    >
+      <path d="M12 5v14" />
+      <path d="m7 10 5-5 5 5" />
+    </svg>
+  );
+}
+
 function ToggleSwitch({
   label,
   checked,
@@ -435,15 +675,13 @@ export default function AdminDashboard() {
   const [totalPhotos, setTotalPhotos] = useState(0);
 
   const [selectedPhotoIds, setSelectedPhotoIds] = useState([]);
-  const [bulkMoveCollection, setBulkMoveCollection] = useState("City Life");
+  const [bulkMoveCollection, setBulkMoveCollection] = useState(DEFAULT_COLLECTION);
   const [activePhotoId, setActivePhotoId] = useState("");
   const [homepageActivePhotoId, setHomepageActivePhotoId] = useState("");
   const [isBulkRunning, setIsBulkRunning] = useState(false);
   const [savingPhotoId, setSavingPhotoId] = useState("");
   const [deletingPhotoId, setDeletingPhotoId] = useState("");
-  const [showLibraryHelp, setShowLibraryHelp] = useState(false);
   const [showLibraryToolsMenu, setShowLibraryToolsMenu] = useState(false);
-  const [categoryToolMode, setCategoryToolMode] = useState("add");
   const [isLibraryEditorOpen, setIsLibraryEditorOpen] = useState(false);
   const [showLibraryPoemFormatting, setShowLibraryPoemFormatting] = useState(false);
   const [showUploadPoemFormatting, setShowUploadPoemFormatting] = useState(false);
@@ -465,8 +703,7 @@ export default function AdminDashboard() {
   const [newCollectionName, setNewCollectionName] = useState("");
   const [renameFromCollection, setRenameFromCollection] = useState("");
   const [renameToCollection, setRenameToCollection] = useState("");
-  const [moveFromCollection, setMoveFromCollection] = useState("");
-  const [moveToCollection, setMoveToCollection] = useState("City Life");
+  const [deleteCollectionName, setDeleteCollectionName] = useState("");
   const [isUpdatingCollections, setIsUpdatingCollections] = useState(false);
   const [draggingPhotoId, setDraggingPhotoId] = useState("");
   const [dragOverPhotoId, setDragOverPhotoId] = useState("");
@@ -512,13 +749,14 @@ export default function AdminDashboard() {
   const libraryAutoSaveTimerRef = useRef(null);
   const baseOrderRef = useRef([]);
   const baseHomepageOrderRef = useRef([]);
+  const skipNextLibraryLoadRef = useRef(false);
 
   const isUploading = uploadStatus === "uploading";
   const selectedSet = useMemo(() => new Set(selectedPhotoIds), [selectedPhotoIds]);
   const selectedCount = selectedPhotoIds.length;
 
   const collectionOptions = useMemo(
-    () => mergeCollections(baseCollections, collections, photos.map((photo) => photo.collection)),
+    () => mergeCollections(collections, photos.map((photo) => photo.collection)),
     [collections, photos],
   );
 
@@ -526,8 +764,14 @@ export default function AdminDashboard() {
   const isHomepageTab = activeTab === "homepage";
   const isDraftsTab = activeTab === "drafts";
   const isLibraryTab = activeTab === "library" || isDraftsTab;
+  const isCompactAdminViewport = useSyncExternalStore(
+    subscribeToCompactAdminViewport,
+    getCompactAdminViewportSnapshot,
+    () => false,
+  );
   const isHomepageCollectionFilter = collectionFilter === HOMEPAGE_COLLECTION_FILTER;
   const canManualReorder = isLibraryTab && !isDraftsTab;
+  const supportsDesktopDrag = !isCompactAdminViewport;
   const effectivePublishedFilter = isDraftsTab ? "draft" : publishedFilter;
   const librarySortOptions = useMemo(
     () =>
@@ -717,6 +961,18 @@ export default function AdminDashboard() {
       dot: "bg-zinc-500",
     };
   }, [collectionFilter, isDraftsTab, isHomepageCollectionFilter]);
+  const libraryTitle = isDraftsTab ? "Draft Library" : "Photo Library";
+  const libraryResultCount = Number.isFinite(totalPhotos) ? totalPhotos : photos.length;
+  const searchChipValue = searchInput.trim();
+  const hasActiveLibraryFilters =
+    Boolean(searchChipValue) ||
+    collectionFilter !== "All" ||
+    librarySort !== "newest" ||
+    (!isDraftsTab && effectivePublishedFilter !== "all");
+  const manageableCollectionOptions = useMemo(
+    () => collectionOptions.filter((collection) => collection !== DEFAULT_COLLECTION),
+    [collectionOptions],
+  );
 
   const getWorkspaceTabClass = useCallback((tabKey, isActive) => {
     const base =
@@ -746,6 +1002,27 @@ export default function AdminDashboard() {
 
     const tone = map[tabKey] || map.library;
     return `${base} ${isActive ? tone.active : tone.idle}`;
+  }, []);
+
+  const clearLibrarySearch = useCallback(() => {
+    setPage(1);
+    setSearchInput("");
+    setSearchQuery("");
+  }, []);
+
+  const clearCollectionFilter = useCallback(() => {
+    setPage(1);
+    setCollectionFilter("All");
+  }, []);
+
+  const clearLibrarySort = useCallback(() => {
+    setPage(1);
+    setLibrarySort("newest");
+  }, []);
+
+  const clearVisibilityFilter = useCallback(() => {
+    setPage(1);
+    setPublishedFilter("all");
   }, []);
 
   const requestLibraryEditorClose = useCallback(() => {
@@ -828,7 +1105,7 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  const loadLibraryData = useCallback(async () => {
+  const loadLibraryData = useCallback(async (options = {}) => {
     if (!isLibraryTab) {
       return;
     }
@@ -836,10 +1113,16 @@ export default function AdminDashboard() {
     setLoadingPhotos(true);
 
     try {
-      const usingHomepageFilter = collectionFilter === HOMEPAGE_COLLECTION_FILTER;
-      const requestedSort = usingHomepageFilter ? "curated" : librarySort;
-      const requestedLimit = usingHomepageFilter ? HOMEPAGE_MAX_PHOTOS : pageSize;
-      const requestedOffset = usingHomepageFilter ? 0 : (page - 1) * pageSize;
+      const nextCollectionFilter = options.collectionFilter ?? collectionFilter;
+      const nextLibrarySort = options.librarySort ?? librarySort;
+      const nextPage = options.page ?? page;
+      const nextPageSize = options.pageSize ?? pageSize;
+      const nextSearchQuery = options.searchQuery ?? searchQuery;
+      const nextPublishedFilter = options.publishedFilter ?? effectivePublishedFilter;
+      const usingHomepageFilter = nextCollectionFilter === HOMEPAGE_COLLECTION_FILTER;
+      const requestedSort = usingHomepageFilter ? "curated" : nextLibrarySort;
+      const requestedLimit = usingHomepageFilter ? HOMEPAGE_MAX_PHOTOS : nextPageSize;
+      const requestedOffset = usingHomepageFilter ? 0 : (nextPage - 1) * nextPageSize;
 
       const params = new URLSearchParams({
         sort: requestedSort,
@@ -849,14 +1132,14 @@ export default function AdminDashboard() {
       });
       if (usingHomepageFilter) {
         params.set("featured", "1");
-      } else if (collectionFilter !== "All") {
-        params.set("collection", collectionFilter);
+      } else if (nextCollectionFilter !== "All") {
+        params.set("collection", nextCollectionFilter);
       }
-      if (searchQuery) {
-        params.set("q", searchQuery);
+      if (nextSearchQuery) {
+        params.set("q", nextSearchQuery);
       }
-      if (effectivePublishedFilter !== "all") {
-        params.set("published", effectivePublishedFilter);
+      if (nextPublishedFilter !== "all") {
+        params.set("published", nextPublishedFilter);
       }
 
       const photoList = await fetch(`/api/photos?${params.toString()}`, {
@@ -946,6 +1229,10 @@ export default function AdminDashboard() {
   }, [searchInput]);
 
   useEffect(() => {
+    if (skipNextLibraryLoadRef.current) {
+      skipNextLibraryLoadRef.current = false;
+      return;
+    }
     loadLibraryData();
   }, [loadLibraryData]);
 
@@ -970,9 +1257,18 @@ export default function AdminDashboard() {
       return;
     }
     if (!collectionOptions.includes(bulkMoveCollection)) {
-      setBulkMoveCollection(collectionOptions[0]);
+      setBulkMoveCollection(collectionOptions[0] || DEFAULT_COLLECTION);
     }
   }, [bulkMoveCollection, collectionOptions]);
+
+  useEffect(() => {
+    if (renameFromCollection && !manageableCollectionOptions.includes(renameFromCollection)) {
+      setRenameFromCollection("");
+    }
+    if (deleteCollectionName && !manageableCollectionOptions.includes(deleteCollectionName)) {
+      setDeleteCollectionName("");
+    }
+  }, [deleteCollectionName, manageableCollectionOptions, renameFromCollection]);
 
   useEffect(() => {
     if (canManualReorder) {
@@ -1777,8 +2073,62 @@ export default function AdminDashboard() {
     }
   }, [fetchWithCsrf, loadHomepageData]);
 
+  const applyLibraryReorder = useCallback(async (nextPhotos) => {
+    if (!canManualReorder || !Array.isArray(nextPhotos) || nextPhotos.length < 2) {
+      return;
+    }
+
+    const previousPhotos = photos;
+    const previousOrderIds = previousPhotos.map((item) => item.photoId);
+    if (areOrdersEqual(nextPhotos, previousOrderIds)) {
+      return;
+    }
+
+    if (isHomepageCollectionFilter) {
+      setPhotos(nextPhotos);
+      const saved = await saveHomepageOrderFromLibrary(nextPhotos);
+      if (!saved) {
+        setPhotos(previousPhotos);
+      }
+      return;
+    }
+
+    if (librarySort !== "manual") {
+      setReorderConfirmPrompt({
+        open: true,
+        sortLabel: librarySortOptions.find((option) => option.value === librarySort)?.label || librarySort,
+        nextOrderIds: nextPhotos.map((item) => item.photoId),
+        previousOrderIds,
+      });
+      return;
+    }
+
+    setPhotos(nextPhotos);
+    const saved = await persistLibraryOrder(nextPhotos, previousOrderIds);
+    if (!saved) {
+      setPhotos(previousPhotos);
+    }
+  }, [
+    canManualReorder,
+    isHomepageCollectionFilter,
+    librarySort,
+    librarySortOptions,
+    persistLibraryOrder,
+    photos,
+    saveHomepageOrderFromLibrary,
+  ]);
+
+  const moveLibraryPhotoByOffset = useCallback(async (photoId, offset) => {
+    if (!canManualReorder || isSavingOrder || isAutoSavingHomepageOrder) {
+      return;
+    }
+
+    const nextPhotos = movePhotoListByOffset(photos, photoId, offset);
+    await applyLibraryReorder(nextPhotos);
+  }, [applyLibraryReorder, canManualReorder, isAutoSavingHomepageOrder, isSavingOrder, photos]);
+
   const handleCardDragStart = (event, photoId) => {
-    if (!canManualReorder || isSavingOrder) {
+    if (!canManualReorder || !supportsDesktopDrag || isSavingOrder || isAutoSavingHomepageOrder) {
       return;
     }
     setDraggingPhotoId(photoId);
@@ -1788,7 +2138,7 @@ export default function AdminDashboard() {
   };
 
   const handleCardDragOver = (event, photoId) => {
-    if (!canManualReorder) {
+    if (!canManualReorder || !supportsDesktopDrag) {
       return;
     }
     if (!draggingPhotoId || draggingPhotoId === photoId) {
@@ -1802,7 +2152,7 @@ export default function AdminDashboard() {
   };
 
   const handleCardDrop = async (event, photoId) => {
-    if (!canManualReorder || isSavingOrder) {
+    if (!canManualReorder || !supportsDesktopDrag || isSavingOrder || isAutoSavingHomepageOrder) {
       return;
     }
     event.preventDefault();
@@ -1820,40 +2170,9 @@ export default function AdminDashboard() {
       setDragOverPhotoId("");
       return;
     }
-    const previousPhotos = photos;
-    const previousOrderIds = previousPhotos.map((item) => item.photoId);
-
-    if (isHomepageCollectionFilter) {
-      setPhotos(nextPhotos);
-      setDraggingPhotoId("");
-      setDragOverPhotoId("");
-      await saveHomepageOrderFromLibrary(nextPhotos);
-      return;
-    }
-    if (librarySort !== "manual") {
-      setDraggingPhotoId("");
-      setDragOverPhotoId("");
-      setReorderConfirmPrompt({
-        open: true,
-        sortLabel: librarySortOptions.find((option) => option.value === librarySort)?.label || librarySort,
-        nextOrderIds: nextPhotos.map((item) => item.photoId),
-        previousOrderIds,
-      });
-      return;
-    }
-
-    setPhotos(nextPhotos);
     setDraggingPhotoId("");
     setDragOverPhotoId("");
-    const saved = await persistLibraryOrder(nextPhotos, previousOrderIds);
-    if (!saved) {
-      setPhotos(previousPhotos);
-      return;
-    }
-    if (librarySort !== "manual") {
-      setPage(1);
-      setLibrarySort("manual");
-    }
+    await applyLibraryReorder(nextPhotos);
   };
 
   const cancelReorderConfirm = () => {
@@ -2195,6 +2514,25 @@ export default function AdminDashboard() {
     applyHomepageOrder(next);
   };
 
+  const moveHomepagePhotoByOffset = useCallback((photoId, offset) => {
+    const next = movePhotoListByOffset(
+      homepagePhotoIds.map((itemId) => ({ photoId: itemId })),
+      photoId,
+      offset,
+    ).map((item) => item.photoId);
+
+    if (next.length !== homepagePhotoIds.length) {
+      return;
+    }
+
+    const hasChanged = next.some((itemId, index) => itemId !== homepagePhotoIds[index]);
+    if (!hasChanged) {
+      return;
+    }
+
+    applyHomepageOrder(next);
+  }, [homepagePhotoIds]);
+
   const insertHomepagePhotoAt = (photoId, targetPhotoId) => {
     if (!photoId) {
       return;
@@ -2307,6 +2645,10 @@ export default function AdminDashboard() {
   };
 
   const handleHomepageDragStart = (event, photoId) => {
+    if (!supportsDesktopDrag) {
+      return;
+    }
+
     setHomepageDraggingPhotoId(photoId);
     setCardDragPreview(event);
     event.dataTransfer.effectAllowed = "move";
@@ -2314,6 +2656,10 @@ export default function AdminDashboard() {
   };
 
   const handleHomepagePoolDragStart = (event, photoId) => {
+    if (!supportsDesktopDrag) {
+      return;
+    }
+
     setHomepageDraggingPhotoId(photoId);
     setCardDragPreview(event);
     event.dataTransfer.effectAllowed = "copyMove";
@@ -2321,6 +2667,10 @@ export default function AdminDashboard() {
   };
 
   const handleHomepageDragOver = (event, photoId) => {
+    if (!supportsDesktopDrag) {
+      return;
+    }
+
     const payload = parseHomepageDragPayload(event);
     if (!payload.photoId || payload.photoId === photoId) {
       return;
@@ -2333,6 +2683,10 @@ export default function AdminDashboard() {
   };
 
   const handleHomepageDrop = (event, photoId) => {
+    if (!supportsDesktopDrag) {
+      return;
+    }
+
     event.preventDefault();
     const payload = parseHomepageDragPayload(event);
     if (!payload.photoId || payload.photoId === photoId) {
@@ -2351,6 +2705,10 @@ export default function AdminDashboard() {
   };
 
   const handleHomepageListDragOver = (event) => {
+    if (!supportsDesktopDrag) {
+      return;
+    }
+
     const payload = parseHomepageDragPayload(event);
     if (!payload.photoId) {
       return;
@@ -2362,6 +2720,10 @@ export default function AdminDashboard() {
   };
 
   const handleHomepageListDrop = (event) => {
+    if (!supportsDesktopDrag) {
+      return;
+    }
+
     event.preventDefault();
     const payload = parseHomepageDragPayload(event);
     if (!payload.photoId) {
@@ -2403,14 +2765,20 @@ export default function AdminDashboard() {
     const normalized = normalizeCollectionName(newCollectionName);
     if (!normalized) {
       setManageStatus("error");
-      setManageMessage("Enter a collection name.");
+      setManageMessage("Enter an album name.");
+      return;
+    }
+
+    if (collectionOptions.includes(normalized)) {
+      setManageStatus("error");
+      setManageMessage("That album already exists.");
       return;
     }
 
     setCollections((current) => mergeCollections(current, [normalized]));
     setNewCollectionName("");
     setManageStatus("success");
-    setManageMessage("Collection added. Assign it to photos to persist.");
+    setManageMessage("Album created. Assign it to photos to keep it.");
   };
 
   const runRenameCollection = async () => {
@@ -2418,13 +2786,25 @@ export default function AdminDashboard() {
     const to = normalizeCollectionName(renameToCollection);
     if (!from || !to) {
       setManageStatus("error");
-      setManageMessage("Select a collection and enter a new name.");
+      setManageMessage("Select an album and enter a new name.");
+      return;
+    }
+
+    if (from === DEFAULT_COLLECTION) {
+      setManageStatus("error");
+      setManageMessage(`"${DEFAULT_COLLECTION}" is the default album and cannot be renamed.`);
       return;
     }
 
     if (from === to) {
       setManageStatus("error");
-      setManageMessage("New collection name must be different.");
+      setManageMessage("New album name must be different.");
+      return;
+    }
+
+    if (collectionOptions.includes(to)) {
+      setManageStatus("error");
+      setManageMessage("That album name already exists.");
       return;
     }
 
@@ -2442,33 +2822,53 @@ export default function AdminDashboard() {
         }),
       }).then(parseJsonResponse);
 
-      setManageStatus("success");
-      setManageMessage(`Collection renamed from "${from}" to "${to}".`);
+      setCollections((current) => mergeCollections(current.filter((item) => item !== from), [to]));
+      setPhotos((current) =>
+        current.map((photo) => (photo.collection === from ? { ...photo, collection: to } : photo)),
+      );
+      setHomepagePool((current) =>
+        current.map((photo) => (photo.collection === from ? { ...photo, collection: to } : photo)),
+      );
+      setDrafts((current) =>
+        Object.fromEntries(
+          Object.entries(current).map(([photoId, draft]) => [
+            photoId,
+            draft?.collection === from ? { ...draft, collection: to } : draft,
+          ]),
+        ),
+      );
+      setUploadForm((current) =>
+        current.collection === from ? { ...current, collection: to } : current,
+      );
+      setBulkMoveCollection((current) => (current === from ? to : current));
+      if (collectionFilter === from) {
+        skipNextLibraryLoadRef.current = true;
+        setPage(1);
+        setCollectionFilter(to);
+      }
       setRenameFromCollection("");
       setRenameToCollection("");
-      await loadLibraryData();
-      if (isHomepageTab) {
-        await loadHomepageData();
-      }
+      setManageStatus("success");
+      setManageMessage(`Album renamed from "${from}" to "${to}".`);
     } catch (error) {
       setManageStatus("error");
-      setManageMessage(error.message || "Unable to rename collection.");
+      setManageMessage(error.message || "Unable to rename album.");
     } finally {
       setIsUpdatingCollections(false);
     }
   };
 
-  const runMoveCollection = async () => {
-    const from = normalizeCollectionName(moveFromCollection);
-    const to = normalizeCollectionName(moveToCollection);
-    if (!from || !to) {
+  const runDeleteCollection = async () => {
+    const target = normalizeCollectionName(deleteCollectionName);
+    if (!target) {
       setManageStatus("error");
-      setManageMessage("Select source and destination collections.");
+      setManageMessage("Select an album to delete.");
       return;
     }
-    if (from === to) {
+
+    if (target === DEFAULT_COLLECTION) {
       setManageStatus("error");
-      setManageMessage("Choose a different destination collection.");
+      setManageMessage(`"${DEFAULT_COLLECTION}" is the default album and cannot be deleted.`);
       return;
     }
 
@@ -2480,22 +2880,48 @@ export default function AdminDashboard() {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          action: "moveCollection",
-          fromCollection: from,
-          toCollection: to,
+          action: "deleteCollection",
+          collectionName: target,
         }),
       }).then(parseJsonResponse);
 
-      setManageStatus("success");
-      setManageMessage(`Moved "${from}" photos to "${to}".`);
-      setMoveFromCollection("");
-      await loadLibraryData();
-      if (isHomepageTab) {
-        await loadHomepageData();
+      setCollections((current) => current.filter((item) => item !== target));
+      setPhotos((current) =>
+        current.map((photo) =>
+          photo.collection === target ? { ...photo, collection: DEFAULT_COLLECTION } : photo,
+        ),
+      );
+      setHomepagePool((current) =>
+        current.map((photo) =>
+          photo.collection === target ? { ...photo, collection: DEFAULT_COLLECTION } : photo,
+        ),
+      );
+      setDrafts((current) =>
+        Object.fromEntries(
+          Object.entries(current).map(([photoId, draft]) => [
+            photoId,
+            draft?.collection === target ? { ...draft, collection: DEFAULT_COLLECTION } : draft,
+          ]),
+        ),
+      );
+      setUploadForm((current) =>
+        current.collection === target ? { ...current, collection: DEFAULT_COLLECTION } : current,
+      );
+      setBulkMoveCollection((current) => (current === target ? DEFAULT_COLLECTION : current));
+      if (collectionFilter === target) {
+        skipNextLibraryLoadRef.current = true;
+        setPage(1);
+        setCollectionFilter("All");
+        await loadLibraryData({ collectionFilter: "All", page: 1 });
+      } else {
+        await loadLibraryData();
       }
+      setDeleteCollectionName("");
+      setManageStatus("success");
+      setManageMessage(`Album deleted. Photos were moved to "${DEFAULT_COLLECTION}".`);
     } catch (error) {
       setManageStatus("error");
-      setManageMessage(error.message || "Unable to move collection.");
+      setManageMessage(error.message || "Unable to delete album.");
     } finally {
       setIsUpdatingCollections(false);
     }
@@ -3056,7 +3482,7 @@ export default function AdminDashboard() {
                 <section className="h-fit rounded-2xl border border-line bg-white p-3 shadow-[0_12px_30px_rgba(0,0,0,0.05)] sm:p-4">
                   <h3 className="text-[11px] tracking-[0.14em] uppercase">Homepage Sequence</h3>
                   <p className="mt-2 text-sm text-muted">
-                    Drag to reorder. Click Edit on a row to open the popup editor.
+                    Drag to reorder on desktop, or use the move buttons on touch devices and compact screens.
                   </p>
                   <p className="mt-1 text-xs text-muted">
                     Tip: drag photo cards from the Published Library Picker below into this sequence.
@@ -3089,11 +3515,14 @@ export default function AdminDashboard() {
                         const isDropTarget = homepageDragOverPhotoId === photo.photoId;
                         const isActive = homepageActivePhoto?.photoId === photo.photoId;
                         const slotLabel = homepagePhotoIds.findIndex((photoId) => photoId === photo.photoId) + 1;
+                        const canMoveUp = slotLabel > 1 && !isSavingHomepage && !isAutoSavingHomepageOrder;
+                        const canMoveDown =
+                          slotLabel < homepagePhotoIds.length && !isSavingHomepage && !isAutoSavingHomepageOrder;
 
                         return (
                           <article
                             key={photo.photoId}
-                            draggable
+                            draggable={supportsDesktopDrag}
                             onDragStart={(event) => handleHomepageDragStart(event, photo.photoId)}
                             onDragOver={(event) => handleHomepageDragOver(event, photo.photoId)}
                             onDrop={(event) => handleHomepageDrop(event, photo.photoId)}
@@ -3159,6 +3588,36 @@ export default function AdminDashboard() {
                                 type="button"
                                 onClick={(event) => {
                                   event.stopPropagation();
+                                  moveHomepagePhotoByOffset(photo.photoId, -1);
+                                }}
+                                disabled={!canMoveUp}
+                                aria-label={`Move ${photo.title || "photo"} up in homepage sequence`}
+                                className="inline-flex min-h-9 items-center gap-1 rounded border border-line px-2 py-1 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground disabled:opacity-35"
+                              >
+                                <span className="h-3.5 w-3.5">
+                                  <MoveArrowIcon direction="up" />
+                                </span>
+                                Up
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  moveHomepagePhotoByOffset(photo.photoId, 1);
+                                }}
+                                disabled={!canMoveDown}
+                                aria-label={`Move ${photo.title || "photo"} down in homepage sequence`}
+                                className="inline-flex min-h-9 items-center gap-1 rounded border border-line px-2 py-1 text-[10px] tracking-[0.12em] uppercase transition-colors hover:border-foreground disabled:opacity-35"
+                              >
+                                <span className="h-3.5 w-3.5">
+                                  <MoveArrowIcon direction="down" />
+                                </span>
+                                Down
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
                                   setHomepageActivePhotoId(photo.photoId);
                                   setIsHomepageEditorOpen(true);
                                 }}
@@ -3190,7 +3649,7 @@ export default function AdminDashboard() {
                   <div>
                     <h3 className="text-[11px] tracking-[0.14em] uppercase">Published Library Picker</h3>
                     <p className="mt-2 text-sm text-muted">
-                      Add published photos to homepage. You can also drag a card directly into Homepage Sequence above.
+                      Add published photos to homepage on touch devices, or drag a card into Homepage Sequence on desktop.
                     </p>
                   </div>
                   <p className="text-xs tracking-[0.12em] text-muted uppercase">
@@ -3201,7 +3660,7 @@ export default function AdminDashboard() {
                   {filteredHomepageAvailablePhotos.map((photo) => (
                     <article
                       key={photo.photoId}
-                      draggable
+                      draggable={supportsDesktopDrag}
                       onDragStart={(event) => handleHomepagePoolDragStart(event, photo.photoId)}
                       onDragEnd={handleHomepageDragEnd}
                       className="group overflow-hidden rounded-xl border border-line bg-white transition-all hover:border-foreground/45 hover:shadow-[0_10px_22px_rgba(0,0,0,0.08)]"
@@ -3219,7 +3678,7 @@ export default function AdminDashboard() {
                       <div className="space-y-2 p-3 sm:p-3.5">
                         <p className="truncate text-[15px] font-semibold sm:text-base">{photo.title || "Untitled"}</p>
                         <p className="truncate text-[10px] tracking-[0.12em] text-muted uppercase">{photo.collection}</p>
-                        <p className="hidden text-xs text-muted sm:block">Drag card to sequence, or use Add.</p>
+                        <p className="text-xs text-muted">Use Add on touch devices, or drag to sequence on desktop.</p>
                         <button
                           type="button"
                           onClick={() => addPhotoToHomepage(photo.photoId)}
@@ -3241,299 +3700,251 @@ export default function AdminDashboard() {
             </>
           ) : (
           <>
-          <div className="rounded-2xl border border-line bg-[linear-gradient(180deg,rgba(255,255,255,0.99)_0%,rgba(252,249,244,0.96)_100%)] p-4 shadow-[0_12px_30px_rgba(0,0,0,0.08)]">
-            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">
-                  {isDraftsTab ? "Draft Library" : "Photo Library"}
+          <div className="rounded-2xl border border-line bg-[linear-gradient(180deg,rgba(255,255,255,0.99)_0%,rgba(252,249,244,0.96)_100%)] p-4 shadow-[0_12px_30px_rgba(0,0,0,0.08)] sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-[1.6rem] font-semibold tracking-[-0.02em] text-zinc-950 sm:text-[1.75rem]">
+                  {libraryTitle}
+                  <span className="ml-2 text-[0.85em] font-medium text-zinc-500">
+                    ({libraryResultCount.toLocaleString()})
+                  </span>
                 </h2>
               </div>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="inline-flex items-center rounded-full border border-zinc-300 bg-zinc-50 px-2.5 py-1 text-[10px] tracking-[0.12em] text-zinc-700 uppercase">
-                  Sort: {currentLibrarySortLabel}
-                </span>
-                <span className="inline-flex items-center rounded-full border border-zinc-300 bg-zinc-50 px-2.5 py-1 text-[10px] tracking-[0.12em] text-zinc-700 uppercase">
-                  Visibility: {currentLibraryVisibilityLabel}
-                </span>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-end gap-3">
-              <label className="grid w-full gap-1 text-sm sm:w-[340px]">
-                <span className="text-foreground/90">Search</span>
-                <input
-                  value={searchInput}
-                  onChange={(event) => setSearchInput(event.target.value)}
-                  placeholder="Title, caption, poem"
-                  className="w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
-                />
-              </label>
 
-              <label className="grid min-w-[190px] gap-1 text-sm">
-                <span className="text-foreground/90">Category</span>
-                <select
-                  value={collectionFilter}
-                  onChange={(event) => {
-                    setPage(1);
-                    setCollectionFilter(event.target.value);
-                  }}
-                  className={`border px-3 py-2.5 outline-none focus:border-foreground ${
-                    isHomepageCollectionFilter
-                      ? "border-emerald-300 bg-emerald-50/60 text-emerald-900"
-                      : "border-line"
-                  }`}
-                >
-                  <option value="All">All</option>
-                  {!isDraftsTab ? (
-                    <option value={HOMEPAGE_COLLECTION_FILTER}>Homepage</option>
-                  ) : null}
-                  {collectionOptions.map((collection) => (
-                    <option key={collection} value={collection}>
-                      {collection}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="grid min-w-[190px] gap-1 text-sm">
-                <span className="text-foreground/90">Sort</span>
-                <select
-                  value={librarySort}
-                  onChange={(event) => {
-                    setPage(1);
-                    setLibrarySort(event.target.value);
-                  }}
-                  className="border border-line px-3 py-2.5 outline-none focus:border-foreground"
-                >
-                  {librarySortOptions.map((option) => (
-                    <option key={`top-sort-${option.value}`} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div ref={libraryToolsRef} className="relative self-end">
+              <div ref={libraryToolsRef} className="relative shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowLibraryToolsMenu((current) => !current)}
-                  className="inline-flex h-[46px] items-center gap-2 rounded-md border border-line bg-white px-3 text-[12px] hover:border-foreground"
+                  className="inline-flex h-10 items-center gap-2 rounded-full border border-zinc-300 bg-white px-4 text-[12px] text-zinc-800 shadow-[0_8px_20px_rgba(0,0,0,0.05)] hover:border-zinc-900/35 hover:text-zinc-950"
                   aria-expanded={showLibraryToolsMenu}
-                  aria-label="Toggle library tools"
+                  aria-label="Toggle album manager"
                 >
-                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <path d="M4 7h16" />
-                    <path d="M4 12h16" />
-                    <path d="M4 17h16" />
-                  </svg>
-                  Tools
+                  <span className="h-4 w-4">
+                    <ActionsIcon />
+                  </span>
+                  Albums
                 </button>
 
                 {showLibraryToolsMenu ? (
-                  <div className="absolute right-0 top-[calc(100%+0.55rem)] z-40 w-[min(94vw,430px)]">
-                    <div className="relative rounded-xl border border-line bg-[linear-gradient(180deg,rgba(255,255,255,0.99)_0%,rgba(250,248,243,0.96)_100%)] p-4 shadow-[0_16px_44px_rgba(0,0,0,0.16)]">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-foreground">Library tools</p>
+                  <div className="absolute right-0 top-[calc(100%+0.6rem)] z-40 w-[min(92vw,390px)]">
+                    <div className="max-h-[min(82vh,760px)] overflow-y-auto rounded-[1.55rem] border border-zinc-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.99)_0%,rgba(249,247,243,0.98)_100%)] p-5 shadow-[0_24px_60px_rgba(0,0,0,0.18)]">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-[1.35rem] font-semibold tracking-[-0.02em] text-zinc-950">
+                            Manage Albums
+                          </p>
+                          <p className="mt-1 text-[11px] tracking-[0.12em] text-zinc-500 uppercase">
+                            Create, rename, or remove albums
+                          </p>
+                        </div>
                         <button
                           type="button"
                           onClick={() => setShowLibraryToolsMenu(false)}
-                          className="rounded-md border border-line px-2.5 py-1.5 text-xs hover:border-foreground"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
+                          aria-label="Close album manager"
                         >
-                          Close
+                          <span className="h-4 w-4">
+                            <CloseIcon />
+                          </span>
                         </button>
                       </div>
 
-                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                        <label className="text-sm">
-                          Visibility
-                          <select
-                            value={effectivePublishedFilter}
-                            onChange={(event) => {
-                              setPage(1);
-                              setPublishedFilter(event.target.value);
-                            }}
-                            disabled={isDraftsTab}
-                            className="mt-1.5 w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
-                          >
-                            <option value="all">All</option>
-                            <option value="published">Published</option>
-                            <option value="draft">Draft</option>
-                          </select>
-                        </label>
-
-                        <label className="text-sm">
-                          Per Page
-                          <select
-                            value={String(pageSize)}
-                            onChange={(event) => {
-                              setPage(1);
-                              setPageSize(Number(event.target.value));
-                            }}
-                            className="mt-1.5 w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
-                          >
-                            {PAGE_SIZE_OPTIONS.map((size) => (
-                              <option key={size} value={size}>
-                                {size}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-
-                      </div>
-
-                      <div className="mt-3 rounded-md border border-line bg-white/90 p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-semibold">Help</p>
-                          <button
-                            type="button"
-                            onClick={() => setShowLibraryHelp((current) => !current)}
-                            className="rounded-md border border-line px-2.5 py-1.5 text-xs hover:border-foreground"
-                          >
-                            {showLibraryHelp ? "Hide" : "Show"}
-                          </button>
-                        </div>
-                        {showLibraryHelp ? (
-                          <p className="mt-2 text-xs leading-5 text-foreground/80">
-                            `Published` means visible on public pages. `Draft` stays private in admin only.
-                            Use `Homepage` for main-page curation and sequence. Turn on `Reorder` mode to drag cards.
-                          </p>
-                        ) : null}
-                      </div>
-
-                      <div className="mt-3 rounded-md border border-line bg-white/90 p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <h3 className="text-sm font-semibold">Categories</h3>
-                          <p className="text-xs text-muted">Add, rename, or move category groups.</p>
-                        </div>
-
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setCategoryToolMode("add")}
-                            className={`rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
-                              categoryToolMode === "add"
-                                ? "border-foreground bg-foreground text-background"
-                                : "border-line hover:border-foreground"
-                            }`}
-                          >
-                            Add
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setCategoryToolMode("rename")}
-                            className={`rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
-                              categoryToolMode === "rename"
-                                ? "border-foreground bg-foreground text-background"
-                                : "border-line hover:border-foreground"
-                            }`}
-                          >
-                            Rename
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setCategoryToolMode("move")}
-                            className={`rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
-                              categoryToolMode === "move"
-                                ? "border-foreground bg-foreground text-background"
-                                : "border-line hover:border-foreground"
-                            }`}
-                          >
-                            Move
-                          </button>
-                        </div>
-
-                        {categoryToolMode === "add" ? (
-                          <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                      <div className="mt-6 space-y-4">
+                        <section className="rounded-[1.2rem] border border-zinc-200/85 bg-white/96 p-4 shadow-[0_10px_24px_rgba(0,0,0,0.06)]">
+                          <div>
+                            <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">
+                              Create Album
+                            </p>
+                            <h3 className="mt-1 text-base font-semibold text-zinc-950">
+                              Add a new album
+                            </h3>
+                            <p className="mt-1 text-sm text-muted">
+                              New albums appear in filters right away and are saved once photos use them.
+                            </p>
+                          </div>
+                          <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
                             <input
                               value={newCollectionName}
                               onChange={(event) => setNewCollectionName(event.target.value)}
-                              placeholder="New category name"
-                              className="w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
+                              placeholder="New album name"
+                              className="h-10 w-full rounded-xl border border-zinc-200 bg-white px-3.5 text-sm shadow-[0_6px_18px_rgba(0,0,0,0.04)] outline-none focus:border-zinc-900/35 focus:ring-0"
                             />
-                            <button
-                              type="button"
+                            <LibraryActionButton
+                              icon={<PlusIcon />}
+                              variant="primary"
                               onClick={addCollectionOption}
-                              className="rounded-md border border-line px-4 py-2.5 text-xs hover:border-foreground"
+                              className="justify-center sm:min-w-[120px]"
                             >
-                              Add
-                            </button>
+                              Create
+                            </LibraryActionButton>
                           </div>
-                        ) : null}
+                        </section>
 
-                        {categoryToolMode === "rename" ? (
-                          <div className="mt-2 grid gap-2">
-                            <select
+                        <section className="rounded-[1.2rem] border border-zinc-200/85 bg-white/96 p-4 shadow-[0_10px_24px_rgba(0,0,0,0.06)]">
+                          <div>
+                            <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">
+                              Rename Album
+                            </p>
+                            <h3 className="mt-1 text-base font-semibold text-zinc-950">
+                              Update an album name
+                            </h3>
+                          </div>
+                          <div className="mt-4 grid gap-3">
+                            <PanelSelectInput
+                              label="Album"
                               value={renameFromCollection}
+                              displayValue={renameFromCollection || "Select album"}
                               onChange={(event) => setRenameFromCollection(event.target.value)}
-                              className="w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
+                              disabled={manageableCollectionOptions.length < 1 || isUpdatingCollections}
                             >
-                              <option value="">Select category</option>
-                              {collectionOptions.map((collection) => (
+                              <option value="">Select album</option>
+                              {manageableCollectionOptions.map((collection) => (
                                 <option key={`rename-${collection}`} value={collection}>
                                   {collection}
                                 </option>
                               ))}
-                            </select>
-                            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                            </PanelSelectInput>
+                            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
                               <input
                                 value={renameToCollection}
                                 onChange={(event) => setRenameToCollection(event.target.value)}
-                                placeholder="New category name"
-                                className="w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
+                                placeholder="New album name"
+                                className="h-10 w-full rounded-xl border border-zinc-200 bg-white px-3.5 text-sm shadow-[0_6px_18px_rgba(0,0,0,0.04)] outline-none focus:border-zinc-900/35 focus:ring-0"
                               />
-                              <button
-                                type="button"
+                              <LibraryActionButton
+                                icon={<PencilIcon />}
+                                variant="secondary"
                                 onClick={runRenameCollection}
-                                disabled={isUpdatingCollections}
-                                className="rounded-md border border-line px-4 py-2.5 text-xs hover:border-foreground disabled:opacity-45"
+                                disabled={manageableCollectionOptions.length < 1 || isUpdatingCollections}
+                                className="justify-center sm:min-w-[120px]"
                               >
                                 Rename
-                              </button>
+                              </LibraryActionButton>
                             </div>
                           </div>
-                        ) : null}
+                        </section>
 
-                        {categoryToolMode === "move" ? (
-                          <div className="mt-2 grid gap-2">
-                            <select
-                              value={moveFromCollection}
-                              onChange={(event) => setMoveFromCollection(event.target.value)}
-                              className="w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
+                        <section className="rounded-[1.2rem] border border-red-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(255,247,247,0.98)_100%)] p-4 shadow-[0_10px_24px_rgba(220,38,38,0.08)]">
+                          <div>
+                            <p className="text-[11px] tracking-[0.14em] text-red-500 uppercase">
+                              Delete Album
+                            </p>
+                            <h3 className="mt-1 text-base font-semibold text-zinc-950">
+                              Remove an album
+                            </h3>
+                            <p className="mt-1 text-sm text-zinc-600">
+                              Photos from a deleted album are moved to {DEFAULT_COLLECTION}.
+                            </p>
+                          </div>
+                          <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                            <PanelSelectInput
+                              label="Album"
+                              value={deleteCollectionName}
+                              displayValue={deleteCollectionName || "Select album"}
+                              onChange={(event) => setDeleteCollectionName(event.target.value)}
+                              disabled={manageableCollectionOptions.length < 1 || isUpdatingCollections}
                             >
-                              <option value="">From category</option>
-                              {collectionOptions.map((collection) => (
-                                <option key={`from-${collection}`} value={collection}>
+                              <option value="">Select album</option>
+                              {manageableCollectionOptions.map((collection) => (
+                                <option key={`delete-${collection}`} value={collection}>
                                   {collection}
                                 </option>
                               ))}
-                            </select>
-                            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                              <select
-                                value={moveToCollection}
-                                onChange={(event) => setMoveToCollection(event.target.value)}
-                                className="w-full border border-line px-3 py-2.5 outline-none focus:border-foreground"
-                              >
-                                {collectionOptions.map((collection) => (
-                                  <option key={`to-${collection}`} value={collection}>
-                                    {collection}
-                                  </option>
-                                ))}
-                              </select>
-                              <button
-                                type="button"
-                                onClick={runMoveCollection}
-                                disabled={isUpdatingCollections}
-                                className="rounded-md border border-line px-4 py-2.5 text-xs hover:border-foreground disabled:opacity-45"
-                              >
-                                Move
-                              </button>
-                            </div>
+                            </PanelSelectInput>
+                            <LibraryActionButton
+                              icon={<TrashIcon />}
+                              variant="danger"
+                              onClick={runDeleteCollection}
+                              disabled={!deleteCollectionName || isUpdatingCollections}
+                              className="justify-center sm:self-end sm:min-w-[120px]"
+                            >
+                              Delete
+                            </LibraryActionButton>
                           </div>
-                        ) : null}
+                        </section>
                       </div>
                     </div>
                   </div>
                 ) : null}
               </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2.5">
+              <label className="relative min-w-[min(100%,320px)] flex-[1_1_320px] max-w-[420px]">
+                <span className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400">
+                  <SearchIcon />
+                </span>
+                <input
+                  aria-label="Search photos, captions, poems"
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder="Search photos, captions, poems..."
+                  className="h-10 w-full rounded-full border border-zinc-300 bg-white pl-10 pr-4 text-sm shadow-[0_6px_18px_rgba(0,0,0,0.04)] outline-none focus:border-foreground"
+                />
+              </label>
+
+              <FilterSelectPill
+                label="Category"
+                value={collectionFilter}
+                displayValue={
+                  collectionFilter === "All"
+                    ? "All"
+                    : collectionFilter === HOMEPAGE_COLLECTION_FILTER
+                      ? "Homepage"
+                      : collectionFilter
+                }
+                onChange={(event) => {
+                  setPage(1);
+                  setCollectionFilter(event.target.value);
+                }}
+                valueClassName="max-w-[9.5rem]"
+              >
+                <option value="All">All</option>
+                {!isDraftsTab ? (
+                  <option value={HOMEPAGE_COLLECTION_FILTER}>Homepage</option>
+                ) : null}
+                {collectionOptions.map((collection) => (
+                  <option key={collection} value={collection}>
+                    {collection}
+                  </option>
+                ))}
+              </FilterSelectPill>
+
+              <FilterSelectPill
+                label="Sort"
+                value={librarySort}
+                displayValue={currentLibrarySortLabel}
+                onChange={(event) => {
+                  setPage(1);
+                  setLibrarySort(event.target.value);
+                }}
+                valueClassName="max-w-[9rem]"
+              >
+                {librarySortOptions.map((option) => (
+                  <option key={`toolbar-sort-${option.value}`} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </FilterSelectPill>
+
+              <FilterSelectPill
+                label="Visibility"
+                value={effectivePublishedFilter}
+                displayValue={currentLibraryVisibilityLabel}
+                onChange={(event) => {
+                  if (isDraftsTab) {
+                    return;
+                  }
+                  setPage(1);
+                  setPublishedFilter(event.target.value);
+                }}
+                disabled={isDraftsTab}
+                valueClassName="max-w-[7rem]"
+              >
+                <option value="all">All</option>
+                <option value="published">Published</option>
+                <option value="draft">Draft</option>
+              </FilterSelectPill>
             </div>
 
             {isDraftsTab ? (
@@ -3542,6 +3953,59 @@ export default function AdminDashboard() {
               </p>
             ) : null}
           </div>
+
+          {hasActiveLibraryFilters ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {searchChipValue ? (
+                <button
+                  type="button"
+                  onClick={clearLibrarySearch}
+                  className="inline-flex items-center gap-2 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-[11px] text-zinc-700 shadow-[0_6px_16px_rgba(0,0,0,0.04)] hover:border-zinc-900/40"
+                >
+                  Search: {searchChipValue}
+                  <span className="h-3.5 w-3.5">
+                    <ChipCloseIcon />
+                  </span>
+                </button>
+              ) : null}
+              {collectionFilter !== "All" ? (
+                <button
+                  type="button"
+                  onClick={clearCollectionFilter}
+                  className="inline-flex items-center gap-2 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-[11px] text-zinc-700 shadow-[0_6px_16px_rgba(0,0,0,0.04)] hover:border-zinc-900/40"
+                >
+                  Category: {currentLibraryViewLabel}
+                  <span className="h-3.5 w-3.5">
+                    <ChipCloseIcon />
+                  </span>
+                </button>
+              ) : null}
+              {librarySort !== "newest" ? (
+                <button
+                  type="button"
+                  onClick={clearLibrarySort}
+                  className="inline-flex items-center gap-2 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-[11px] text-zinc-700 shadow-[0_6px_16px_rgba(0,0,0,0.04)] hover:border-zinc-900/40"
+                >
+                  Sort: {currentLibrarySortLabel}
+                  <span className="h-3.5 w-3.5">
+                    <ChipCloseIcon />
+                  </span>
+                </button>
+              ) : null}
+              {!isDraftsTab && effectivePublishedFilter !== "all" ? (
+                <button
+                  type="button"
+                  onClick={clearVisibilityFilter}
+                  className="inline-flex items-center gap-2 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-[11px] text-zinc-700 shadow-[0_6px_16px_rgba(0,0,0,0.04)] hover:border-zinc-900/40"
+                >
+                  Visibility: {currentLibraryVisibilityLabel}
+                  <span className="h-3.5 w-3.5">
+                    <ChipCloseIcon />
+                  </span>
+                </button>
+              ) : null}
+            </div>
+          ) : null}
 
           {manageMessage ? (
             <p className={`text-sm ${manageStatus === "error" ? "text-red-700" : "text-muted"}`}>
@@ -3589,7 +4053,10 @@ export default function AdminDashboard() {
                 ) : isSavingOrder ? (
                   <p className="text-sm text-muted">Saving order...</p>
                 ) : (
-                  <p className="text-sm text-muted">Drag photo thumbnails to reorder. Order saves automatically.</p>
+                  <p className="text-sm text-muted">
+                    Drag photo thumbnails to reorder on desktop, or use the move buttons on touch devices and compact
+                    screens. Order saves automatically.
+                  </p>
                 )}
               </div>
 
@@ -3656,13 +4123,16 @@ export default function AdminDashboard() {
               ) : (
                 <>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                    {photos.map((photo) => {
+                    {photos.map((photo, photoIndex) => {
                       const draft = drafts[photo.photoId] || toDraft(photo);
                       const isDirty = isDraftDirty(photo, draft);
                       const isSelected = selectedSet.has(photo.photoId);
                       const isActive = activePhotoId === photo.photoId;
                       const isDragging = draggingPhotoId === photo.photoId;
                       const isDropTarget = dragOverPhotoId === photo.photoId;
+                      const canMoveBackward = photoIndex > 0 && !isSavingOrder && !isAutoSavingHomepageOrder;
+                      const canMoveForward =
+                        photoIndex < photos.length - 1 && !isSavingOrder && !isAutoSavingHomepageOrder;
 
                       return (
                         <article
@@ -3686,9 +4156,9 @@ export default function AdminDashboard() {
                             className="block w-full text-left"
                           >
                             <div
-                              draggable={canManualReorder}
+                              draggable={canManualReorder && supportsDesktopDrag}
                               onDragStart={(event) => {
-                                if (!canManualReorder || isSavingOrder) {
+                                if (!canManualReorder || !supportsDesktopDrag || isSavingOrder) {
                                   return;
                                 }
                                 event.stopPropagation();
@@ -3750,32 +4220,68 @@ export default function AdminDashboard() {
                               />
                             </label>
                             {canManualReorder ? (
-                              <button
-                                type="button"
-                                draggable
-                                onDragStart={(event) => {
-                                  event.stopPropagation();
-                                  handleCardDragStart(event, photo.photoId);
-                                }}
-                                onDragEnd={handleCardDragEnd}
-                                onMouseDown={(event) => event.stopPropagation()}
-                                onClick={(event) => event.preventDefault()}
-                                title="Drag card to reorder"
-                                className="inline-flex cursor-grab items-center rounded p-1 text-muted/80 hover:bg-zinc-100 active:cursor-grabbing"
-                              >
-                                <svg
-                                  viewBox="0 0 12 12"
-                                  className="h-4 w-4"
-                                  fill="currentColor"
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    moveLibraryPhotoByOffset(photo.photoId, -1);
+                                  }}
+                                  disabled={!canMoveBackward}
+                                  aria-label={`Move ${photo.title || "photo"} earlier`}
+                                  className="inline-flex min-h-8 items-center gap-1 rounded border border-line px-1.5 py-1 text-[10px] tracking-[0.08em] text-muted/90 uppercase transition-colors hover:border-foreground hover:text-foreground disabled:opacity-35"
                                 >
-                                  <circle cx="3" cy="2.5" r="0.9" />
-                                  <circle cx="3" cy="6" r="0.9" />
-                                  <circle cx="3" cy="9.5" r="0.9" />
-                                  <circle cx="9" cy="2.5" r="0.9" />
-                                  <circle cx="9" cy="6" r="0.9" />
-                                  <circle cx="9" cy="9.5" r="0.9" />
-                                </svg>
-                              </button>
+                                  <span className="h-3.5 w-3.5">
+                                    <MoveArrowIcon direction="left" />
+                                  </span>
+                                  Prev
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    moveLibraryPhotoByOffset(photo.photoId, 1);
+                                  }}
+                                  disabled={!canMoveForward}
+                                  aria-label={`Move ${photo.title || "photo"} later`}
+                                  className="inline-flex min-h-8 items-center gap-1 rounded border border-line px-1.5 py-1 text-[10px] tracking-[0.08em] text-muted/90 uppercase transition-colors hover:border-foreground hover:text-foreground disabled:opacity-35"
+                                >
+                                  <span className="h-3.5 w-3.5">
+                                    <MoveArrowIcon direction="right" />
+                                  </span>
+                                  Next
+                                </button>
+                                {supportsDesktopDrag ? (
+                                  <button
+                                    type="button"
+                                    draggable
+                                    onDragStart={(event) => {
+                                      event.stopPropagation();
+                                      handleCardDragStart(event, photo.photoId);
+                                    }}
+                                    onDragEnd={handleCardDragEnd}
+                                    onMouseDown={(event) => event.stopPropagation()}
+                                    onClick={(event) => event.preventDefault()}
+                                    title="Drag card to reorder"
+                                    className="hidden cursor-grab items-center rounded p-1 text-muted/80 hover:bg-zinc-100 active:cursor-grabbing sm:inline-flex"
+                                  >
+                                    <svg
+                                      viewBox="0 0 12 12"
+                                      className="h-4 w-4"
+                                      fill="currentColor"
+                                    >
+                                      <circle cx="3" cy="2.5" r="0.9" />
+                                      <circle cx="3" cy="6" r="0.9" />
+                                      <circle cx="3" cy="9.5" r="0.9" />
+                                      <circle cx="9" cy="2.5" r="0.9" />
+                                      <circle cx="9" cy="6" r="0.9" />
+                                      <circle cx="9" cy="9.5" r="0.9" />
+                                    </svg>
+                                  </button>
+                                ) : null}
+                              </div>
                             ) : <span className="h-4 w-4" aria-hidden="true" />}
                           </div>
                         </article>

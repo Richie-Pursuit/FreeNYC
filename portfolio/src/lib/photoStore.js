@@ -662,3 +662,34 @@ export async function renameCollection(fromCollection, toCollection) {
 export async function moveCollection(fromCollection, toCollection) {
   return renameCollection(fromCollection, toCollection);
 }
+
+export async function deleteCollection(collectionName, fallbackCollection = DEFAULT_COLLECTION) {
+  const collectionToDelete = sanitizeOptionalCollection(collectionName);
+  const fallback = sanitizeCollection(fallbackCollection);
+
+  if (!collectionToDelete) {
+    return { error: "collectionName is required." };
+  }
+
+  if (collectionToDelete === fallback) {
+    return { error: "The default collection cannot be deleted." };
+  }
+
+  await ensurePhotoStoreReady();
+  const collection = await getPhotoCollection();
+  const now = new Date().toISOString();
+  const result = await collection.updateMany(
+    { collection: collectionToDelete },
+    {
+      $set: {
+        collection: fallback,
+        updatedAt: now,
+      },
+    },
+  );
+
+  return {
+    modifiedCount: result.modifiedCount,
+    fallbackCollection: fallback,
+  };
+}

@@ -31,6 +31,44 @@ function ArrowIcon({ direction = "left" }) {
   );
 }
 
+function ChevronDownIcon({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
+function ExpandTextIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path d="M4 7h16" />
+      <path d="M4 12h11" />
+      <path d="M4 17h8" />
+      <path d="m15 14 4 4" />
+      <path d="M19 14v4h-4" />
+    </svg>
+  );
+}
+
 function getPhotoAltText(photo) {
   if (typeof photo?.alt === "string" && photo.alt.trim()) {
     return photo.alt.trim();
@@ -137,6 +175,68 @@ function renderFormattedText(value, keyPrefix) {
   ));
 }
 
+function useScrollCue(contentKey, enabled = true) {
+  const scrollRef = useRef(null);
+  const [scrollState, setScrollState] = useState({
+    canScroll: false,
+    atBottom: true,
+  });
+
+  useEffect(() => {
+    if (!enabled) {
+      return undefined;
+    }
+
+    const node = scrollRef.current;
+    if (!(node instanceof HTMLElement)) {
+      return undefined;
+    }
+
+    const updateScrollState = () => {
+      const maxScrollTop = node.scrollHeight - node.clientHeight;
+      const canScroll = maxScrollTop > 14;
+      const atBottom = !canScroll || node.scrollTop >= maxScrollTop - 8;
+
+      setScrollState((current) =>
+        current.canScroll === canScroll && current.atBottom === atBottom
+          ? current
+          : { canScroll, atBottom },
+      );
+    };
+
+    const frameId = window.requestAnimationFrame(() => {
+      node.scrollTop = 0;
+      updateScrollState();
+    });
+
+    node.addEventListener("scroll", updateScrollState, { passive: true });
+    window.addEventListener("resize", updateScrollState);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      node.removeEventListener("scroll", updateScrollState);
+      window.removeEventListener("resize", updateScrollState);
+    };
+  }, [contentKey, enabled]);
+
+  return {
+    scrollRef,
+    showScrollCue: scrollState.canScroll && !scrollState.atBottom,
+  };
+}
+
+function ScrollCue({ label = "Scroll to keep reading" }) {
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-1.5">
+      <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black via-black/72 to-transparent" />
+      <div className="relative inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-black/72 px-3 py-1.5 text-[10px] font-semibold tracking-[0.16em] text-white/92 uppercase shadow-[0_10px_24px_rgba(0,0,0,0.3)] backdrop-blur-sm">
+        <span>{label}</span>
+        <ChevronDownIcon className="h-3.5 w-3.5 motion-safe:animate-bounce" />
+      </div>
+    </div>
+  );
+}
+
 export default function LightboxViewer({
   isOpen = true,
   photo,
@@ -192,8 +292,25 @@ export default function LightboxViewer({
   const poemText = toText(currentPhoto?.poem);
   const trimmedCaption = truncateText(captionText, 230);
   const trimmedPoem = truncateText(poemText, 180);
-  const canExpandText =
-    (captionText && captionText.length > 230) || (poemText && poemText.length > 180);
+  const hasLongCaption = Boolean(captionText && captionText.length > 230);
+  const hasLongPoem = Boolean(poemText && poemText.length > 180);
+  const canExpandText = hasLongCaption || hasLongPoem;
+  const expandButtonLabel = hasLongPoem
+    ? hasLongCaption
+      ? "Read Full Text"
+      : "Read Full Poem"
+    : "Read Full Text";
+  const expandHintLabel = hasLongPoem ? "Poem continues below" : "More writing below";
+  const readingCueLabel = hasLongPoem ? "Scroll for full poem" : "Scroll to keep reading";
+  const detailsCueLabel = hasLongPoem ? "More poem below" : "More text below";
+  const { scrollRef: readingScrollRef, showScrollCue: showReadingScrollCue } = useScrollCue(
+    `${currentPhotoKey}-reading-${showReadingView}-${captionText.length}-${poemText.length}`,
+    showReadingView,
+  );
+  const { scrollRef: detailsScrollRef, showScrollCue: showDetailsScrollCue } = useScrollCue(
+    `${currentPhotoKey}-details-${showDetails}-${trimmedCaption.length}-${trimmedPoem.length}`,
+    showDetails,
+  );
   const thumbnailWindow = useMemo(() => {
     if (safePhotos.length < 1 || currentIndex < 0) {
       return [];
@@ -408,17 +525,25 @@ export default function LightboxViewer({
               </button>
             </div>
 
-            <div className="mt-3 max-h-[44vh] space-y-3 overflow-y-auto pr-1 sm:max-h-[52vh]">
-              {captionText ? (
-                <p className="text-sm leading-6 text-white/90">
-                  {renderFormattedText(captionText, `caption-full-${currentPhotoKey}`)}
-                </p>
-              ) : null}
-              {poemText ? (
-                <p className="text-sm leading-7 text-white/85">
-                  {renderFormattedText(poemText, `poem-full-${currentPhotoKey}`)}
-                </p>
-              ) : null}
+            <div className="relative mt-3">
+              <div
+                ref={readingScrollRef}
+                className="max-h-[44vh] overflow-y-auto pr-1 pb-12 sm:max-h-[52vh]"
+              >
+                <div className="space-y-3">
+                  {captionText ? (
+                    <p className="text-sm leading-6 text-white/90">
+                      {renderFormattedText(captionText, `caption-full-${currentPhotoKey}`)}
+                    </p>
+                  ) : null}
+                  {poemText ? (
+                    <p className="text-sm leading-7 text-white/85">
+                      {renderFormattedText(poemText, `poem-full-${currentPhotoKey}`)}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+              {showReadingScrollCue ? <ScrollCue label={readingCueLabel} /> : null}
             </div>
           </div>
         </div>
@@ -487,36 +612,48 @@ export default function LightboxViewer({
 
         {showDetails ? (
           <footer className="absolute right-0 bottom-0 left-0 z-10 flex max-h-[52vh] flex-col gap-2 bg-gradient-to-t from-black/86 via-black/52 to-transparent px-4 pt-14 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:px-8 sm:pt-18 sm:pb-[calc(env(safe-area-inset-bottom)+0.9rem)]">
-            <div className="pointer-events-auto max-h-[24vh] overflow-y-auto pr-1">
-              <p className="display-font text-xl leading-none break-words sm:text-2xl">
-                {titleText}
-              </p>
-              <p className="mt-2 text-[11px] tracking-[0.16em] text-white/65 uppercase">
-                {collectionText}
-              </p>
-              {trimmedCaption ? (
-                <p className="mt-2 max-w-2xl text-xs leading-5 text-white/85 break-words sm:text-sm sm:leading-6">
-                  {renderFormattedText(trimmedCaption, `caption-brief-${currentPhotoKey}`)}
+            <div className="pointer-events-auto relative">
+              <div
+                ref={detailsScrollRef}
+                className="max-h-[24vh] overflow-y-auto pr-1 pb-12"
+              >
+                <p className="display-font text-xl leading-none break-words sm:text-2xl">
+                  {titleText}
                 </p>
-              ) : null}
-              {trimmedPoem ? (
-                <p className="mt-1.5 max-w-2xl text-xs leading-5 text-white/75 break-words sm:text-sm sm:leading-6">
-                  {renderFormattedText(trimmedPoem, `poem-brief-${currentPhotoKey}`)}
+                <p className="mt-2 text-[11px] tracking-[0.16em] text-white/65 uppercase">
+                  {collectionText}
                 </p>
-              ) : null}
-              {canExpandText ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReadingPhotoKey((current) =>
-                      current === currentPhotoKey ? "" : currentPhotoKey,
-                    );
-                  }}
-                  className="pointer-events-auto mt-2 inline-flex rounded-full border border-white/28 bg-black/35 px-3 py-1 text-[10px] tracking-[0.14em] text-white/85 uppercase transition-colors hover:text-white"
-                >
-                  {showReadingView ? "Close Text" : "More Text"}
-                </button>
-              ) : null}
+                {trimmedCaption ? (
+                  <p className="mt-2 max-w-2xl text-xs leading-5 text-white/85 break-words sm:text-sm sm:leading-6">
+                    {renderFormattedText(trimmedCaption, `caption-brief-${currentPhotoKey}`)}
+                  </p>
+                ) : null}
+                {trimmedPoem ? (
+                  <p className="mt-1.5 max-w-2xl text-xs leading-5 text-white/75 break-words sm:text-sm sm:leading-6">
+                    {renderFormattedText(trimmedPoem, `poem-brief-${currentPhotoKey}`)}
+                  </p>
+                ) : null}
+                {canExpandText ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center rounded-full border border-white/18 bg-white/8 px-2.5 py-1 text-[10px] tracking-[0.14em] text-white/72 uppercase">
+                      {expandHintLabel}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReadingPhotoKey((current) =>
+                          current === currentPhotoKey ? "" : currentPhotoKey,
+                        );
+                      }}
+                      className="pointer-events-auto inline-flex min-h-10 items-center gap-2 rounded-full border border-amber-200/70 bg-amber-100/14 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-amber-50 uppercase shadow-[0_10px_24px_rgba(0,0,0,0.24)] transition-all hover:border-amber-100 hover:bg-amber-100/22 hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-100/35"
+                    >
+                      <ExpandTextIcon />
+                      {expandButtonLabel}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+              {showDetailsScrollCue ? <ScrollCue label={detailsCueLabel} /> : null}
             </div>
 
             <div className="pointer-events-none flex shrink-0 flex-wrap items-center justify-between gap-2 text-[10px] tracking-[0.16em] text-white/70 uppercase sm:text-[11px] sm:tracking-[0.18em]">

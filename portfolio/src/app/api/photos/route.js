@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   createPhoto,
+  deleteCollection,
   getCollections,
   listPhotos,
   moveCollection,
@@ -228,8 +229,21 @@ export async function PATCH(request) {
       });
     }
 
+    if (body.action === "deleteCollection") {
+      const result = await deleteCollection(body.collectionName);
+      if (result.error) {
+        return badRequest(result.error);
+      }
+
+      return NextResponse.json({
+        modifiedCount: result.modifiedCount || 0,
+        fallbackCollection: result.fallbackCollection,
+        message: "Collection deleted.",
+      });
+    }
+
     return badRequest(
-      "Unsupported action. Use one of: 'reorder', 'setFeaturedOrder', 'renameCollection', 'moveCollection'.",
+      "Unsupported action. Use one of: 'reorder', 'setFeaturedOrder', 'renameCollection', 'moveCollection', 'deleteCollection'.",
     );
   } catch (error) {
     return internalApiError(error);
