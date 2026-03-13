@@ -1,4 +1,3 @@
-import Navbar from "@/components/Navbar";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
@@ -18,10 +17,9 @@ export default async function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
+    <div className="admin-page min-h-screen">
       <AdminIdleSessionGuard />
-      <div className="motion-page-enter mx-auto flex w-full max-w-5xl justify-end px-4 pt-4 sm:px-8 sm:pt-6 lg:px-12">
+      <div className="motion-page-enter mx-auto flex w-full max-w-[1680px] justify-end px-4 pt-4 sm:px-8 sm:pt-6 lg:px-12">
         <AdminSessionControls email={session.user.email} />
       </div>
       <AdminDashboard />

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Navbar from "@/components/Navbar";
 
 export const metadata = {
   title: "404 - Page Not Found",
@@ -8,7 +7,6 @@ export const metadata = {
 export default function NotFoundPage() {
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
       <main
         id="main-content"
         className="motion-page-enter mx-auto flex w-full max-w-4xl flex-col items-center px-4 py-16 text-center sm:px-8 sm:py-20"
@@ -26,19 +24,19 @@ export default function NotFoundPage() {
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3 sm:mt-10 sm:gap-4">
           <Link
             href="/"
-            className="min-h-11 border border-foreground bg-foreground px-5 py-3 text-[12px] font-semibold tracking-[0.14em] text-background uppercase transition-opacity hover:opacity-90"
+            className="theme-primary-button min-h-11 border px-5 py-3 text-[12px] font-semibold tracking-[0.14em] uppercase transition-opacity hover:opacity-90"
           >
             Back To Home
           </Link>
           <Link
             href="/gallery"
-            className="min-h-11 border border-foreground/35 bg-white px-5 py-3 text-[12px] font-semibold tracking-[0.14em] text-foreground uppercase transition-colors hover:border-foreground"
+            className="theme-secondary-button min-h-11 border px-5 py-3 text-[12px] font-semibold tracking-[0.14em] uppercase transition-colors"
           >
             Open Gallery
           </Link>
           <Link
             href="/contact"
-            className="min-h-11 border border-foreground/35 bg-white px-5 py-3 text-[12px] font-semibold tracking-[0.14em] text-foreground uppercase transition-colors hover:border-foreground"
+            className="theme-secondary-button min-h-11 border px-5 py-3 text-[12px] font-semibold tracking-[0.14em] uppercase transition-colors"
           >
             Contact
           </Link>

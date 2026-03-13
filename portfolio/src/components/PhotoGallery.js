@@ -164,8 +164,8 @@ export default function PhotoGallery({
                 aria-pressed={isActive}
                 className={`min-h-11 border px-4 py-2.5 text-[12px] tracking-[0.12em] uppercase transition-colors sm:py-2 ${
                   isActive
-                    ? "border-foreground bg-foreground text-background"
-                    : "border-line text-muted hover:border-foreground hover:text-foreground"
+                    ? "theme-primary-button"
+                    : "theme-secondary-button"
                 }`}
               >
                 {collection}
@@ -187,7 +187,7 @@ export default function PhotoGallery({
           <button
             type="button"
             onClick={handleLoadMore}
-            className="min-h-11 border border-foreground bg-white px-6 py-3 text-[12px] tracking-[0.14em] uppercase transition-colors hover:bg-foreground hover:text-background"
+            className="theme-primary-button min-h-11 border px-6 py-3 text-[12px] tracking-[0.14em] uppercase transition-colors"
           >
             Load More
           </button>

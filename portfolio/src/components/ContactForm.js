@@ -66,7 +66,7 @@ export default function ContactForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mt-8 space-y-5 border border-foreground/20 bg-white/80 p-4 shadow-[0_14px_40px_rgba(0,0,0,0.05)] backdrop-blur-sm sm:mt-10 sm:space-y-6 sm:p-6"
+      className="theme-surface-muted mt-8 space-y-5 border p-4 backdrop-blur-sm sm:mt-10 sm:space-y-6 sm:p-6"
     >
       <input
         type="text"
@@ -87,7 +87,7 @@ export default function ContactForm() {
           value={form.name}
           onChange={handleChange}
           autoComplete="name"
-          className="mt-2 w-full rounded-md border border-foreground/35 bg-white px-4 py-3 text-base text-foreground placeholder:text-foreground/50 outline-none focus:border-foreground focus:ring-2 focus:ring-foreground/25"
+          className="theme-field mt-2 w-full rounded-md border px-4 py-3 text-base outline-none"
           placeholder="Your name"
           required
           minLength={2}
@@ -105,7 +105,7 @@ export default function ContactForm() {
           onChange={handleChange}
           autoComplete="email"
           inputMode="email"
-          className="mt-2 w-full rounded-md border border-foreground/35 bg-white px-4 py-3 text-base text-foreground placeholder:text-foreground/50 outline-none focus:border-foreground focus:ring-2 focus:ring-foreground/25"
+          className="theme-field mt-2 w-full rounded-md border px-4 py-3 text-base outline-none"
           placeholder="you@example.com"
           required
           maxLength={160}
@@ -121,7 +121,7 @@ export default function ContactForm() {
           value={form.subject}
           onChange={handleChange}
           autoComplete="off"
-          className="mt-2 w-full rounded-md border border-foreground/35 bg-white px-4 py-3 text-base text-foreground placeholder:text-foreground/50 outline-none focus:border-foreground focus:ring-2 focus:ring-foreground/25"
+          className="theme-field mt-2 w-full rounded-md border px-4 py-3 text-base outline-none"
           placeholder="Subject"
           required
           minLength={3}
@@ -138,7 +138,7 @@ export default function ContactForm() {
           value={form.message}
           onChange={handleChange}
           autoComplete="off"
-          className="mt-2 w-full rounded-md border border-foreground/35 bg-white px-4 py-3 text-base leading-7 text-foreground placeholder:text-foreground/50 outline-none focus:border-foreground focus:ring-2 focus:ring-foreground/25"
+          className="theme-field mt-2 w-full rounded-md border px-4 py-3 text-base leading-7 outline-none"
           placeholder="Tell me about your project"
           required
           minLength={10}
@@ -147,7 +147,7 @@ export default function ContactForm() {
         />
       </label>
 
-      <label className="flex items-start gap-3 rounded-md border border-foreground/25 bg-white/85 p-3 text-[12px] tracking-[0.02em] text-foreground/85 sm:text-sm">
+      <label className="theme-surface-muted flex items-start gap-3 rounded-md border p-3 text-[12px] tracking-[0.02em] text-foreground/85 sm:text-sm">
         <input
           type="checkbox"
           name="consent"
@@ -159,11 +159,11 @@ export default function ContactForm() {
         />
         <span>
           I agree to the{" "}
-          <Link href="/privacy" className="underline decoration-foreground/45">
+          <Link href="/privacy" className="theme-link underline">
             Privacy Policy
           </Link>{" "}
           and{" "}
-          <Link href="/terms" className="underline decoration-foreground/45">
+          <Link href="/terms" className="theme-link underline">
             Terms of Use
           </Link>
           .
@@ -172,7 +172,7 @@ export default function ContactForm() {
 
       <button
         type="submit"
-        className="min-h-11 w-full border border-foreground bg-foreground px-6 py-3 text-[12px] font-semibold tracking-[0.16em] text-background uppercase transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+        className="theme-primary-button min-h-11 w-full border px-6 py-3 text-[12px] font-semibold tracking-[0.16em] uppercase transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         disabled={isSending}
       >
         {isSending ? "Sending..." : "Send"}

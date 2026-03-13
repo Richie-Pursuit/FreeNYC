@@ -1,4 +1,3 @@
-import Navbar from "@/components/Navbar";
 import PhotoGallery from "@/components/PhotoGallery";
 import { listPhotos } from "@/lib/photoStore";
 import { samplePhotos } from "@/lib/samplePhotos";
@@ -17,8 +16,6 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
-
       <main id="main-content" className="motion-page-enter px-4 pb-14 sm:px-8 sm:pb-16 lg:px-12">
         <section className="mx-auto w-full max-w-[1800px] py-6 sm:py-8">
           <PhotoGallery

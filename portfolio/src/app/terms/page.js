@@ -1,5 +1,3 @@
-import Navbar from "@/components/Navbar";
-
 export const metadata = {
   title: "Terms of Use",
 };
@@ -9,7 +7,6 @@ const updatedAt = "March 4, 2026";
 export default function TermsPage() {
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
       <main id="main-content" className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-8 sm:py-14">
         <p className="text-[11px] tracking-[0.18em] text-muted uppercase">Terms Of Use</p>
         <h1 className="display-font mt-3 text-4xl leading-none sm:text-5xl">Terms Of Use</h1>
@@ -84,7 +81,7 @@ export default function TermsPage() {
             </h2>
             <p className="mt-2">
               For legal or policy questions, email{" "}
-              <a className="underline decoration-foreground/40" href="mailto:richiecarrasco@pursuit.org">
+              <a className="theme-link underline" href="mailto:richiecarrasco@pursuit.org">
                 richiecarrasco@pursuit.org
               </a>
               .

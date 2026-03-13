@@ -1,4 +1,3 @@
-import Navbar from "@/components/Navbar";
 import ContactForm from "@/components/ContactForm";
 
 export const metadata = {
@@ -8,7 +7,6 @@ export const metadata = {
 export default function ContactPage() {
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
       <main
         id="main-content"
         className="motion-page-enter mx-auto w-full max-w-3xl px-4 py-10 sm:px-8 sm:py-14"

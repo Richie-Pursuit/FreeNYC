@@ -1,4 +1,5 @@
 import { getMongoDatabase, isMongoConfigured } from "@/lib/mongodb";
+import { siteBrand } from "@/lib/siteBrand";
 
 const PAGE_CONTENT_COLLECTION = "page_content";
 const READY_PROMISE_KEY = "__portfolio_page_content_store_ready__";
@@ -12,9 +13,8 @@ const DEFAULT_ABOUT_SECTIONS = Object.freeze({
   },
   header: {
     introLabel: "About the Artist",
-    headline: "Free NYC",
-    supportingLine:
-      "Free NYC is my ongoing visual diary of New York street life, built from patience, instinct, and respect for everyday people.",
+    headline: siteBrand.aboutHeadline,
+    supportingLine: siteBrand.aboutSupportingLine,
   },
   body: {
     paragraphs: [

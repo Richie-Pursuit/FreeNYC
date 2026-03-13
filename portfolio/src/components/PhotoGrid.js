@@ -42,7 +42,7 @@ export default function PhotoGrid({
     return (
       <section
         aria-label="Street photography highlights"
-        className="border border-line bg-white/70 px-5 py-10 text-center text-sm text-muted"
+        className="theme-surface border px-5 py-10 text-center text-sm text-muted"
       >
         No photos available yet.
       </section>

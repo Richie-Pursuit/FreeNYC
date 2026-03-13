@@ -1,4 +1,3 @@
-import Navbar from "@/components/Navbar";
 import Image from "next/image";
 import { getAboutPageContentSafe } from "@/lib/pageContentStore";
 
@@ -26,14 +25,13 @@ export default async function AboutPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
       <main
         id="main-content"
         className="motion-page-enter mx-auto w-full max-w-[1400px] px-4 py-10 sm:px-8 sm:py-12 lg:px-12 lg:py-16"
       >
         <div className="grid gap-8 lg:grid-cols-[1.05fr_1.4fr] lg:gap-14">
           <aside className="lg:sticky lg:top-24 lg:self-start">
-            <figure className="relative overflow-hidden border border-foreground/20 bg-zinc-100 shadow-[0_20px_60px_rgba(0,0,0,0.16)]">
+            <figure className="theme-elevated relative overflow-hidden border bg-[var(--image-fallback)]">
               <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_18%,rgba(255,255,255,0.42),transparent_44%),radial-gradient(circle_at_82%_88%,rgba(10,10,10,0.17),transparent_46%)]" />
               <div className="relative aspect-[4/5] w-full">
                 {hero.imageUrl ? (
@@ -46,7 +44,7 @@ export default async function AboutPage() {
                     priority
                   />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-zinc-200 text-sm text-foreground/65">
+                  <div className="flex h-full w-full items-center justify-center bg-[var(--image-fallback)] text-sm text-foreground/65">
                     Portrait coming soon
                   </div>
                 )}
@@ -74,7 +72,7 @@ export default async function AboutPage() {
             </div>
 
             {quote.text ? (
-              <blockquote className="display-font mt-8 border border-foreground/20 bg-white/70 px-5 py-5 text-xl leading-8 text-foreground/90 italic shadow-[0_10px_28px_rgba(0,0,0,0.06)] sm:mt-10 sm:px-6 sm:py-6 sm:text-3xl sm:leading-10">
+              <blockquote className="theme-surface display-font mt-8 border px-5 py-5 text-xl leading-8 text-foreground/90 italic sm:mt-10 sm:px-6 sm:py-6 sm:text-3xl sm:leading-10">
                 &ldquo;{quote.text}&rdquo;
                 {quote.attribution ? (
                   <footer className="mt-4 text-sm not-italic tracking-[0.12em] text-foreground/70 uppercase">
@@ -90,7 +88,7 @@ export default async function AboutPage() {
                   href={instagramHref}
                   target="_blank"
                   rel="noreferrer"
-                  className="group border border-foreground/20 bg-white px-5 py-4 transition-all hover:-translate-y-0.5 hover:border-foreground hover:shadow-[0_14px_24px_rgba(0,0,0,0.08)]"
+                  className="theme-surface group border px-5 py-4 transition-all hover:-translate-y-0.5 hover:border-[color:var(--accent)]"
                 >
                   <p className="text-[11px] font-semibold tracking-[0.16em] text-foreground/70 uppercase">
                     {contact.instagramLabel}
@@ -98,7 +96,7 @@ export default async function AboutPage() {
                   <p className="mt-2 text-base font-semibold text-foreground">{instagramHandle}</p>
                 </a>
               ) : (
-                <div className="border border-foreground/20 bg-white px-5 py-4">
+                <div className="theme-surface border px-5 py-4">
                   <p className="text-[11px] font-semibold tracking-[0.16em] text-foreground/70 uppercase">
                     {contact.instagramLabel || "Instagram"}
                   </p>
@@ -108,7 +106,7 @@ export default async function AboutPage() {
               {hasEmailLink ? (
                 <a
                   href={`mailto:${emailAddress}`}
-                  className="group border border-foreground/20 bg-white px-5 py-4 transition-all hover:-translate-y-0.5 hover:border-foreground hover:shadow-[0_14px_24px_rgba(0,0,0,0.08)]"
+                  className="theme-surface group border px-5 py-4 transition-all hover:-translate-y-0.5 hover:border-[color:var(--accent)]"
                 >
                   <p className="text-[11px] font-semibold tracking-[0.16em] text-foreground/70 uppercase">
                     {contact.emailLabel}
@@ -116,7 +114,7 @@ export default async function AboutPage() {
                   <p className="mt-2 text-base font-semibold text-foreground">{emailAddress}</p>
                 </a>
               ) : (
-                <div className="border border-foreground/20 bg-white px-5 py-4">
+                <div className="theme-surface border px-5 py-4">
                   <p className="text-[11px] font-semibold tracking-[0.16em] text-foreground/70 uppercase">
                     {contact.emailLabel || "Email"}
                   </p>

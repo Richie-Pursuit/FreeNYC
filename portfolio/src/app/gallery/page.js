@@ -1,4 +1,3 @@
-import Navbar from "@/components/Navbar";
 import PhotoGallery from "@/components/PhotoGallery";
 import { listPhotos } from "@/lib/photoStore";
 import { samplePhotos } from "@/lib/samplePhotos";
@@ -21,7 +20,6 @@ export default async function GalleryPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
       <main
         id="main-content"
         className="motion-page-enter mx-auto w-full max-w-[1800px] px-4 py-10 sm:px-8 lg:px-12"

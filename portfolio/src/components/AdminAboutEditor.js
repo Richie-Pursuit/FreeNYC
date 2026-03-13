@@ -67,10 +67,10 @@ async function parseJsonResponse(response) {
 
 function SectionCard({ title, description, children }) {
   return (
-    <section className="rounded-2xl border border-line bg-white p-4 shadow-[0_12px_34px_rgba(0,0,0,0.05)] sm:p-5">
+    <section className="rounded-[1.35rem] border border-zinc-300/70 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(249,248,245,0.98)_100%)] p-4 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:p-5">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-        {description ? <p className="mt-1 text-sm text-foreground/75">{description}</p> : null}
+        <h3 className="text-[1.15rem] font-semibold tracking-[-0.015em] text-foreground">{title}</h3>
+        {description ? <p className="mt-1 text-sm text-zinc-800">{description}</p> : null}
       </div>
       {children}
     </section>
@@ -472,9 +472,9 @@ export default function AdminAboutEditor() {
 
   if (loading) {
     return (
-      <main id="main-content" className="mx-auto w-full max-w-[1680px] px-4 py-8 sm:px-8 sm:py-10 lg:px-12">
-        <div className="rounded-2xl border border-line bg-white p-5">
-          <p className="text-sm text-foreground/80">Loading About editor...</p>
+      <main id="main-content" className="admin-shell mx-auto w-full max-w-[1680px] px-4 py-8 sm:px-8 sm:py-10 lg:px-12">
+        <div className="rounded-[1.6rem] border border-zinc-300/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.99)_0%,rgba(248,245,239,0.98)_100%)] p-5 shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
+          <p className="text-sm text-zinc-800">Loading About editor...</p>
         </div>
       </main>
     );
@@ -482,8 +482,8 @@ export default function AdminAboutEditor() {
 
   if (!draftSections) {
     return (
-      <main id="main-content" className="mx-auto w-full max-w-[1680px] px-4 py-8 sm:px-8 sm:py-10 lg:px-12">
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-5">
+      <main id="main-content" className="admin-shell mx-auto w-full max-w-[1680px] px-4 py-8 sm:px-8 sm:py-10 lg:px-12">
+        <div className="rounded-[1.6rem] border border-red-200 bg-red-50 p-5 shadow-[0_16px_32px_rgba(220,38,38,0.10)]">
           <p className="text-sm text-red-700">
             {message || "Unable to load About editor. Refresh and try again."}
           </p>
@@ -496,21 +496,21 @@ export default function AdminAboutEditor() {
   const previewParagraphs = draftSections.body.paragraphs.filter((value) => value.trim());
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-[1680px] px-4 py-8 text-[16px] text-foreground sm:px-8 sm:py-10 lg:px-12">
+    <main id="main-content" className="admin-shell mx-auto w-full max-w-[1680px] px-4 py-8 text-[16px] text-foreground sm:px-8 sm:py-10 lg:px-12">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-[12px] tracking-[0.18em] text-foreground/75 uppercase">Admin Workspace</p>
-          <h1 className="display-font mt-2 text-4xl leading-none text-foreground sm:text-5xl">
+          <p className="text-[11px] font-semibold tracking-[0.1em] text-zinc-800 uppercase">Admin Workspace</p>
+          <h1 className="display-font mt-2 text-[2.95rem] leading-none tracking-[-0.04em] text-foreground sm:text-[3.55rem]">
             About Page Editor
           </h1>
-          <p className="mt-3 max-w-2xl text-sm text-foreground/80">
+          <p className="mt-2.5 max-w-2xl text-sm text-zinc-800">
             Edit image, narrative, quote, and contact content for the public About page.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link
             href="/admin"
-            className="rounded-md border border-line bg-white px-4 py-2 text-[12px] font-semibold tracking-[0.12em] text-foreground uppercase transition-colors hover:border-foreground"
+            className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-[12px] font-semibold tracking-[0.12em] text-foreground uppercase shadow-[0_8px_18px_rgba(15,23,42,0.05)] transition-colors hover:border-foreground"
           >
             Back To Control Room
           </Link>
@@ -518,7 +518,7 @@ export default function AdminAboutEditor() {
             type="button"
             onClick={resetToSaved}
             disabled={!isDirty || saving || uploadingImage}
-            className="rounded-md border border-line bg-white px-4 py-2 text-[12px] font-semibold tracking-[0.12em] text-foreground uppercase transition-colors hover:border-foreground disabled:opacity-45"
+            className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-[12px] font-semibold tracking-[0.12em] text-foreground uppercase shadow-[0_8px_18px_rgba(15,23,42,0.05)] transition-colors hover:border-foreground disabled:opacity-45"
           >
             Reset
           </button>
@@ -526,7 +526,7 @@ export default function AdminAboutEditor() {
             type="button"
             onClick={saveContent}
             disabled={!isDirty || saving || uploadingImage}
-            className="rounded-md border border-foreground bg-foreground px-4 py-2 text-[12px] font-semibold tracking-[0.12em] text-background uppercase transition-opacity hover:opacity-90 disabled:opacity-45"
+            className="rounded-full border border-foreground bg-foreground px-4 py-2 text-[12px] font-semibold tracking-[0.12em] text-background uppercase shadow-[0_10px_20px_rgba(17,17,17,0.12)] transition-opacity hover:opacity-90 disabled:opacity-45"
           >
             {saving ? "Saving..." : "Save About Page"}
           </button>
@@ -544,11 +544,11 @@ export default function AdminAboutEditor() {
           {isDirty ? "Unsaved Changes" : "All Changes Saved"}
         </span>
         {message ? (
-          <p className={`text-sm ${status === "error" ? "text-red-700" : "text-foreground/80"}`}>{message}</p>
+          <p className={`text-sm ${status === "error" ? "text-red-700" : "text-zinc-800"}`}>{message}</p>
         ) : null}
       </div>
 
-      <div className="mt-6 grid gap-5 xl:grid-cols-[1.2fr_0.9fr]">
+      <div className="mt-5 grid gap-4 xl:grid-cols-[1.2fr_0.9fr]">
         <div className="space-y-5">
           <SectionCard
             title="Hero Image"

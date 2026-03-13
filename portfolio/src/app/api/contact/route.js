@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getMongoDatabase, isMongoConfigured } from "@/lib/mongodb";
+import { siteBrand } from "@/lib/siteBrand";
 
 const rateLimitState = new Map();
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
@@ -179,7 +180,8 @@ export async function POST(request) {
     process.env.CONTACT_TO_EMAIL ||
     process.env.ADMIN_EMAIL ||
     "richiecarrasco@pursuit.org";
-  const fromEmail = process.env.CONTACT_FROM_EMAIL || "Free NYC <onboarding@resend.dev>";
+  const fromEmail =
+    process.env.CONTACT_FROM_EMAIL || `${siteBrand.contactFromName} <onboarding@resend.dev>`;
   const replyTo = email;
 
   if (!isValidEmail(toEmail)) {

@@ -1,16 +1,72 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import BrandLogoMark from "@/components/BrandLogoMark";
+import {
+  getNavbarBrandFontOption,
+  getNavbarBrandTextClass,
+  getNavbarBrandTextStyle,
+  MAX_CUSTOM_LOGO_DATA_URL_LENGTH,
+  NAVBAR_BRAND_COLOR_OPTIONS,
+  NAVBAR_BRAND_FONT_OPTIONS,
+  NAVBAR_LOGO_SOURCE_OPTIONS,
+  sanitizeBrandColor,
+  siteBrand,
+} from "@/lib/siteBrand";
+import {
+  getSiteTheme,
+  getSiteThemeCssVariables,
+  SITE_THEME_PRESETS,
+} from "@/lib/siteTheme";
+import {
+  applySiteSettingsToDocument,
+  getDefaultSiteSettingsValues,
+  getSiteSettingsCssVariables,
+  normalizeSiteSettings,
+  TEXT_SCALE_OPTIONS,
+} from "@/lib/siteSettings";
 
 const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
+const MAX_BRAND_LOGO_UPLOAD_BYTES = 4 * 1024 * 1024;
+const NAVBAR_LOGO_MAX_WIDTH = 360;
+const NAVBAR_LOGO_MAX_HEIGHT = 180;
 const CSRF_HEADER_NAME = "x-csrf-token";
 const PAGE_SIZE_OPTIONS = [24, 48, 96];
 const HOMEPAGE_MAX_PHOTOS = 100;
 const HOMEPAGE_COLLECTION_FILTER = "__homepage__";
 const COMPACT_ADMIN_MEDIA_QUERIES = ["(max-width: 767px)", "(pointer: coarse)"];
 const DEFAULT_COLLECTION = "City Life";
+const CHROME_BACKGROUND_COLOR_OPTIONS = [
+  { label: "Ivory", value: "#F6F2EA" },
+  { label: "Glass White", value: "#FFFFFF" },
+  { label: "Stone", value: "#D8D0C5" },
+  { label: "Peach", value: "#F0C8B1" },
+  { label: "Blush", value: "#E8C7C5" },
+  { label: "Sky Mist", value: "#C9DFF4" },
+  { label: "Midnight", value: "#15233F" },
+  { label: "Burgundy", value: "#6F2734" },
+  { label: "Forest", value: "#204E45" },
+  { label: "Charcoal", value: "#1F1F21" },
+];
+const CHROME_TEXT_COLOR_OPTIONS = [
+  { label: "Ink", value: "#111111" },
+  { label: "Cloud", value: "#F7F4EC" },
+  { label: "Amber", value: "#D8B267" },
+  { label: "Rose", value: "#F0D7DA" },
+  { label: "Sky", value: "#D8E6FF" },
+  { label: "Moss", value: "#D5E8DF" },
+  { label: "Stone", value: "#D7D0C5" },
+];
+const GLOBAL_TEXT_COLOR_OPTIONS = [
+  { label: "Ink", value: "#111111" },
+  { label: "Slate", value: "#253446" },
+  { label: "Espresso", value: "#4B342A" },
+  { label: "Bottle", value: "#21473F" },
+  { label: "Midnight", value: "#1D2742" },
+  { label: "Mulberry", value: "#5D3657" },
+];
 const LIBRARY_SORT_OPTIONS = [
   { value: "newest", label: "Newest First" },
   { value: "oldest", label: "Oldest First" },
@@ -50,6 +106,69 @@ function fileBaseName(filename) {
   }
 
   return filename.replace(/\.[a-z0-9]+$/i, "").trim() || "Untitled";
+}
+
+function isPngFile(file) {
+  if (!file) {
+    return false;
+  }
+
+  return file.type === "image/png" || /\.png$/i.test(file.name || "");
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string" && reader.result) {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error("Unable to read that PNG."));
+    };
+    reader.onerror = () => reject(new Error("Unable to read that PNG."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImageFromDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new window.Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Unable to process that PNG."));
+    image.src = dataUrl;
+  });
+}
+
+async function fitBrandLogoToNavbar(file) {
+  const sourceDataUrl = await readFileAsDataUrl(file);
+  const image = await loadImageFromDataUrl(sourceDataUrl);
+  const scale = Math.min(
+    1,
+    NAVBAR_LOGO_MAX_WIDTH / Math.max(image.naturalWidth || 1, 1),
+    NAVBAR_LOGO_MAX_HEIGHT / Math.max(image.naturalHeight || 1, 1),
+  );
+  const targetWidth = Math.max(1, Math.round((image.naturalWidth || 1) * scale));
+  const targetHeight = Math.max(1, Math.round((image.naturalHeight || 1) * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Your browser could not prepare that PNG.");
+  }
+
+  context.clearRect(0, 0, targetWidth, targetHeight);
+  context.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+  const fittedDataUrl = canvas.toDataURL("image/png");
+  if (fittedDataUrl.length > MAX_CUSTOM_LOGO_DATA_URL_LENGTH) {
+    throw new Error("That PNG is still too large after fitting. Try a simpler logo.");
+  }
+
+  return fittedDataUrl;
 }
 
 function mergeCollections(...values) {
@@ -438,11 +557,33 @@ function ActionsIcon() {
   );
 }
 
+function TypographyIcon() {
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-flex items-end font-semibold leading-none tracking-[-0.1em]"
+    >
+      <span className="text-[1.15rem]">A</span>
+      <span className="ml-0.5 text-[0.82rem] opacity-80">a</span>
+    </span>
+  );
+}
+
 function PlusIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
       <path d="M12 5v14" />
       <path d="M5 12h14" />
+    </svg>
+  );
+}
+
+function UploadIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M12 16V6" />
+      <path d="m7.5 10.5 4.5-4.5 4.5 4.5" />
+      <path d="M5 18.5h14" />
     </svg>
   );
 }
@@ -509,6 +650,70 @@ function FilterSelectPill({
       </select>
     </div>
   );
+}
+
+function ColorSwatchButton({
+  label,
+  value,
+  selected = false,
+  onClick,
+  disabled = false,
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={selected}
+      title={`${label} ${value}`}
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-[12px] font-medium transition-all ${
+        selected
+          ? "border-zinc-950 bg-zinc-950 text-white shadow-[0_10px_24px_rgba(17,17,17,0.18)]"
+          : "border-zinc-200 bg-white text-zinc-800 hover:border-zinc-400 hover:bg-zinc-50"
+      } disabled:cursor-not-allowed disabled:opacity-45`}
+    >
+      <span
+        className={`h-4 w-4 rounded-full border ${selected ? "border-white/55" : "border-black/10"}`}
+        style={{ backgroundColor: value }}
+        aria-hidden="true"
+      />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function CompactColorChipButton({
+  label,
+  value,
+  selected = false,
+  onClick,
+  disabled = false,
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={selected}
+      title={`${label} ${value}`}
+      className={`inline-flex h-9 w-9 items-center justify-center rounded-full border bg-white transition-all ${
+        selected
+          ? "border-zinc-950 shadow-[0_10px_22px_rgba(17,17,17,0.14)] ring-2 ring-zinc-950/18 ring-offset-2 ring-offset-white"
+          : "border-zinc-200 hover:border-zinc-400 hover:-translate-y-0.5"
+      } disabled:cursor-not-allowed disabled:opacity-45`}
+    >
+      <span
+        className="h-5 w-5 rounded-full border border-black/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)]"
+        style={{ backgroundColor: value }}
+        aria-hidden="true"
+      />
+      <span className="sr-only">{label}</span>
+    </button>
+  );
+}
+
+function getColorOptionLabel(options, value) {
+  return options.find((option) => option.value.toLowerCase() === String(value).toLowerCase())?.label || value;
 }
 
 function PanelSelectInput({
@@ -664,6 +869,15 @@ export default function AdminDashboard() {
   const [csrfToken, setCsrfToken] = useState("");
   const [manageStatus, setManageStatus] = useState("idle");
   const [manageMessage, setManageMessage] = useState("");
+  const [savedBrandSettings, setSavedBrandSettings] = useState(getDefaultSiteSettingsValues());
+  const [brandSettingsDraft, setBrandSettingsDraft] = useState(getDefaultSiteSettingsValues());
+  const [brandingStatus, setBrandingStatus] = useState("idle");
+  const [brandingMessage, setBrandingMessage] = useState("");
+  const [isSavingBranding, setIsSavingBranding] = useState(false);
+  const [isPreparingBrandLogo, setIsPreparingBrandLogo] = useState(false);
+  const [canUndoBranding, setCanUndoBranding] = useState(false);
+  const [showExtendedBrandFonts, setShowExtendedBrandFonts] = useState(false);
+  const [activeNavbarPaletteTarget, setActiveNavbarPaletteTarget] = useState("start");
 
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -746,6 +960,10 @@ export default function AdminDashboard() {
   const editorPanelRef = useRef(null);
   const libraryToolsRef = useRef(null);
   const homepageSequenceRef = useRef(null);
+  const brandLogoInputRef = useRef(null);
+  const brandingAutoSaveTimerRef = useRef(null);
+  const latestBrandSettingsDraftRef = useRef(getDefaultSiteSettingsValues());
+  const brandingUndoRef = useRef(null);
   const libraryAutoSaveTimerRef = useRef(null);
   const baseOrderRef = useRef([]);
   const baseHomepageOrderRef = useRef([]);
@@ -762,6 +980,7 @@ export default function AdminDashboard() {
 
   const isUploadTab = activeTab === "upload";
   const isHomepageTab = activeTab === "homepage";
+  const isBrandingTab = activeTab === "branding";
   const isDraftsTab = activeTab === "drafts";
   const isLibraryTab = activeTab === "library" || isDraftsTab;
   const isCompactAdminViewport = useSyncExternalStore(
@@ -969,6 +1188,62 @@ export default function AdminDashboard() {
     collectionFilter !== "All" ||
     librarySort !== "newest" ||
     (!isDraftsTab && effectivePublishedFilter !== "all");
+  const normalizedBrandSettingsDraft = useMemo(() => normalizeSiteSettings(brandSettingsDraft), [brandSettingsDraft]);
+  const normalizedBrandSettingsDraftKey = JSON.stringify(normalizedBrandSettingsDraft);
+  const savedBrandSettingsKey = JSON.stringify(savedBrandSettings);
+  const brandingPreviewClass = getNavbarBrandTextClass(normalizedBrandSettingsDraft.brandName);
+  const brandingPreviewStyle = getNavbarBrandTextStyle(normalizedBrandSettingsDraft);
+  const brandingPreviewVars = getSiteSettingsCssVariables(normalizedBrandSettingsDraft);
+  const selectedBrandFontOption = getNavbarBrandFontOption(normalizedBrandSettingsDraft.fontKey);
+  const selectedSiteTheme = getSiteTheme(normalizedBrandSettingsDraft.themeKey);
+  const selectedTextScaleOption =
+    TEXT_SCALE_OPTIONS.find((option) => option.key === normalizedBrandSettingsDraft.textScaleKey) ||
+    TEXT_SCALE_OPTIONS[0];
+  const hasUploadedBrandLogo = Boolean(normalizedBrandSettingsDraft.customLogoDataUrl);
+  const isUsingUploadedBrandLogo =
+    normalizedBrandSettingsDraft.logoMode === "custom" && hasUploadedBrandLogo;
+  const primaryBrandFontOptions = useMemo(
+    () => NAVBAR_BRAND_FONT_OPTIONS.filter((option) => option.group !== "extended"),
+    [],
+  );
+  const extendedBrandFontOptions = useMemo(
+    () => NAVBAR_BRAND_FONT_OPTIONS.filter((option) => option.group === "extended"),
+    [],
+  );
+  const selectedFontIsExtended = selectedBrandFontOption.group === "extended";
+  const brandingSampleName = normalizedBrandSettingsDraft.brandName || siteBrand.name;
+  const isBrandingDirty = normalizedBrandSettingsDraftKey !== savedBrandSettingsKey;
+  const activeNavbarSurfaceTarget =
+    normalizedBrandSettingsDraft.navbarFillStyle === "gradient" ? activeNavbarPaletteTarget : "background";
+  const activeNavbarSurfaceLabel =
+    activeNavbarSurfaceTarget === "end"
+      ? "End Color"
+      : activeNavbarSurfaceTarget === "start"
+        ? "Start Color"
+        : "Background Color";
+  const activeNavbarSurfaceValue =
+    activeNavbarSurfaceTarget === "end"
+      ? normalizedBrandSettingsDraft.navbarGradientColor
+      : normalizedBrandSettingsDraft.navbarBackgroundColor;
+  const activeNavbarSurfaceName = getColorOptionLabel(CHROME_BACKGROUND_COLOR_OPTIONS, activeNavbarSurfaceValue);
+  const navbarStartColorName = getColorOptionLabel(
+    CHROME_BACKGROUND_COLOR_OPTIONS,
+    normalizedBrandSettingsDraft.navbarBackgroundColor,
+  );
+  const navbarEndColorName = getColorOptionLabel(
+    CHROME_BACKGROUND_COLOR_OPTIONS,
+    normalizedBrandSettingsDraft.navbarGradientColor,
+  );
+  const navbarTextColorName = getColorOptionLabel(
+    CHROME_TEXT_COLOR_OPTIONS,
+    normalizedBrandSettingsDraft.navbarTextColor,
+  );
+  const adminTypeScaleClass =
+    normalizedBrandSettingsDraft.textScaleKey === "large"
+      ? "text-[19px] [&_input]:text-[18px] [&_select]:text-[18px] [&_textarea]:text-[18px]"
+      : normalizedBrandSettingsDraft.textScaleKey === "comfortable"
+        ? "text-[18px] [&_input]:text-[17px] [&_select]:text-[17px] [&_textarea]:text-[17px]"
+        : "text-[17px] [&_input]:text-[16px] [&_select]:text-[16px] [&_textarea]:text-[16px]";
   const manageableCollectionOptions = useMemo(
     () => collectionOptions.filter((collection) => collection !== DEFAULT_COLLECTION),
     [collectionOptions],
@@ -976,27 +1251,31 @@ export default function AdminDashboard() {
 
   const getWorkspaceTabClass = useCallback((tabKey, isActive) => {
     const base =
-      "rounded-md border px-4 py-2 text-[12px] tracking-[0.14em] uppercase transition-all";
+      "inline-flex min-h-[44px] items-center justify-center rounded-full border px-4 py-2.5 text-[12px] font-semibold tracking-[0.16em] uppercase transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20";
     const map = {
       upload: {
-        active: "border-sky-600 bg-sky-600 text-white shadow-[0_10px_24px_rgba(2,132,199,0.28)]",
-        idle: "border-zinc-300 bg-white text-zinc-700 hover:border-sky-400 hover:text-sky-700",
+        active: "border-sky-600 bg-sky-600 text-white shadow-[0_14px_28px_rgba(2,132,199,0.28)] -translate-y-0.5",
+        idle: "border-sky-200 bg-sky-50 text-sky-900 hover:border-sky-400 hover:bg-sky-100 hover:text-sky-900",
       },
       homepage: {
-        active: "border-emerald-600 bg-emerald-600 text-white shadow-[0_10px_24px_rgba(5,150,105,0.28)]",
-        idle: "border-zinc-300 bg-white text-zinc-700 hover:border-emerald-400 hover:text-emerald-700",
+        active: "border-emerald-600 bg-emerald-600 text-white shadow-[0_14px_28px_rgba(5,150,105,0.28)] -translate-y-0.5",
+        idle: "border-emerald-200 bg-emerald-50 text-emerald-900 hover:border-emerald-400 hover:bg-emerald-100 hover:text-emerald-900",
       },
       library: {
-        active: "border-amber-500 bg-amber-500 text-black shadow-[0_10px_24px_rgba(245,158,11,0.24)]",
-        idle: "border-zinc-300 bg-white text-zinc-700 hover:border-amber-400 hover:text-amber-700",
+        active: "border-amber-500 bg-amber-500 text-black shadow-[0_14px_28px_rgba(245,158,11,0.24)] -translate-y-0.5",
+        idle: "border-amber-200 bg-amber-50 text-amber-900 hover:border-amber-400 hover:bg-amber-100 hover:text-amber-900",
+      },
+      branding: {
+        active: "border-zinc-950 bg-zinc-950 text-white shadow-[0_14px_28px_rgba(17,17,17,0.22)] -translate-y-0.5",
+        idle: "border-zinc-300 bg-zinc-100 text-zinc-900 hover:border-zinc-500 hover:bg-zinc-200 hover:text-zinc-950",
       },
       drafts: {
-        active: "border-rose-600 bg-rose-600 text-white shadow-[0_10px_24px_rgba(190,24,93,0.28)]",
-        idle: "border-zinc-300 bg-white text-zinc-700 hover:border-rose-400 hover:text-rose-700",
+        active: "border-rose-600 bg-rose-600 text-white shadow-[0_14px_28px_rgba(190,24,93,0.28)] -translate-y-0.5",
+        idle: "border-rose-200 bg-rose-50 text-rose-900 hover:border-rose-400 hover:bg-rose-100 hover:text-rose-900",
       },
       about: {
-        active: "border-violet-600 bg-violet-600 text-white shadow-[0_10px_24px_rgba(124,58,237,0.26)]",
-        idle: "border-zinc-300 bg-white text-zinc-700 hover:border-violet-400 hover:text-violet-700",
+        active: "border-violet-600 bg-violet-600 text-white shadow-[0_14px_28px_rgba(124,58,237,0.26)] -translate-y-0.5",
+        idle: "border-violet-200 bg-violet-50 text-violet-900 hover:border-violet-400 hover:bg-violet-100 hover:text-violet-900",
       },
     };
 
@@ -1090,15 +1369,194 @@ export default function AdminDashboard() {
     [ensureCsrfToken],
   );
 
+  const applyBrandingDraftChange = useCallback((updater) => {
+    const current = normalizeSiteSettings(latestBrandSettingsDraftRef.current);
+    const nextInput =
+      typeof updater === "function"
+        ? updater(current)
+        : { ...current, ...updater };
+    const next = normalizeSiteSettings(nextInput);
+
+    if (JSON.stringify(next) === JSON.stringify(current)) {
+      return;
+    }
+
+    applySiteSettingsToDocument(next);
+
+    brandingUndoRef.current = current;
+    setCanUndoBranding(true);
+    latestBrandSettingsDraftRef.current = next;
+    setBrandSettingsDraft(next);
+    setBrandingStatus("idle");
+    setBrandingMessage("");
+  }, []);
+
+  const undoBrandingDraftChange = useCallback(() => {
+    if (!brandingUndoRef.current) {
+      return;
+    }
+
+    const previous = normalizeSiteSettings(brandingUndoRef.current);
+    brandingUndoRef.current = null;
+    setCanUndoBranding(false);
+    applySiteSettingsToDocument(previous);
+    latestBrandSettingsDraftRef.current = previous;
+    setBrandSettingsDraft(previous);
+    setBrandingStatus("idle");
+    setBrandingMessage("");
+  }, []);
+
+  const resetBrandingToOriginal = useCallback(() => {
+    setShowExtendedBrandFonts(false);
+    applyBrandingDraftChange(() => getDefaultSiteSettingsValues());
+  }, [applyBrandingDraftChange]);
+
+  const applyNavbarSurfaceColor = useCallback(
+    (nextColor) => {
+      applyBrandingDraftChange((current) => {
+        if (current.navbarFillStyle === "gradient" && activeNavbarPaletteTarget === "end") {
+          return {
+            ...current,
+            navbarColorMode: "custom",
+            navbarFillStyle: "gradient",
+            navbarGradientColor: nextColor,
+          };
+        }
+
+        return {
+          ...current,
+          navbarColorMode: "custom",
+          navbarBackgroundColor: nextColor,
+        };
+      });
+    },
+    [activeNavbarPaletteTarget, applyBrandingDraftChange],
+  );
+
+  const triggerBrandLogoPicker = useCallback(() => {
+    brandLogoInputRef.current?.click();
+  }, []);
+
+  const handleBrandLogoFileChange = useCallback(async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    if (!isPngFile(file)) {
+      setBrandingStatus("error");
+      setBrandingMessage("Upload a PNG logo so it fits cleanly in the navbar.");
+      return;
+    }
+
+    if (file.size > MAX_BRAND_LOGO_UPLOAD_BYTES) {
+      setBrandingStatus("error");
+      setBrandingMessage("Keep the PNG under 4MB before upload.");
+      return;
+    }
+
+    setIsPreparingBrandLogo(true);
+    setBrandingStatus("idle");
+    setBrandingMessage("");
+
+    try {
+      const customLogoDataUrl = await fitBrandLogoToNavbar(file);
+      applyBrandingDraftChange((current) => ({
+        ...current,
+        logoMode: "custom",
+        customLogoDataUrl,
+      }));
+    } catch (error) {
+      setBrandingStatus("error");
+      setBrandingMessage(error.message || "Unable to prepare that PNG for the navbar.");
+    } finally {
+      setIsPreparingBrandLogo(false);
+    }
+  }, [applyBrandingDraftChange]);
+
+  const saveBrandingSettings = useCallback(async (draftInput = latestBrandSettingsDraftRef.current) => {
+    const nextDraft =
+      draftInput && typeof draftInput === "object"
+        ? draftInput
+        : latestBrandSettingsDraftRef.current;
+    const rawBrandName = String(nextDraft?.brandName || "").trim();
+
+    if (!rawBrandName) {
+      setBrandingStatus("error");
+      setBrandingMessage("Enter a name for the navbar brand.");
+      return;
+    }
+
+    const settingsToSave = normalizeSiteSettings(nextDraft);
+    const settingsToSaveKey = JSON.stringify(settingsToSave);
+
+    setIsSavingBranding(true);
+    setBrandingStatus("saving");
+    setBrandingMessage("");
+
+    try {
+      const result = await fetchWithCsrf("/api/site-settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(settingsToSave),
+      }).then(parseJsonResponse);
+
+      const savedSettings = normalizeSiteSettings(result?.settings || settingsToSave);
+      const latestNormalizedDraft = normalizeSiteSettings(latestBrandSettingsDraftRef.current);
+      const latestDraftKey = JSON.stringify(latestNormalizedDraft);
+      setSavedBrandSettings(savedSettings);
+
+      if (latestDraftKey === settingsToSaveKey) {
+        latestBrandSettingsDraftRef.current = savedSettings;
+        setBrandSettingsDraft(savedSettings);
+      }
+
+      if (result?.persisted === false) {
+        setBrandingStatus("warning");
+        setBrandingMessage("Saved for this session only because MongoDB is not configured.");
+      } else {
+        setBrandingStatus("success");
+        setBrandingMessage("");
+      }
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("site-brand-updated", {
+            detail: savedSettings,
+          }),
+        );
+        window.dispatchEvent(
+          new CustomEvent("site-settings-updated", {
+            detail: savedSettings,
+          }),
+        );
+      }
+    } catch (error) {
+      setBrandingStatus("error");
+      setBrandingMessage(error.message || "Unable to update the navbar branding.");
+    } finally {
+      setIsSavingBranding(false);
+    }
+  }, [fetchWithCsrf]);
+
   const loadHeaderData = useCallback(async () => {
     try {
-      const [uploadHealth, csrf] = await Promise.all([
+      const [uploadHealth, csrf, siteSettings] = await Promise.all([
         fetch("/api/upload", { cache: "no-store" }).then(parseJsonResponse),
         fetch("/api/csrf", { cache: "no-store" }).then(parseJsonResponse),
+        fetch("/api/site-settings", { cache: "no-store" }).then(parseJsonResponse),
       ]);
 
       setReady(Boolean(uploadHealth.ready));
       setCsrfToken(csrf?.csrfToken || "");
+      const nextBrandSettings = normalizeSiteSettings(siteSettings?.settings || {});
+      setSavedBrandSettings(nextBrandSettings);
+      setBrandSettingsDraft(nextBrandSettings);
+      latestBrandSettingsDraftRef.current = nextBrandSettings;
+      brandingUndoRef.current = null;
+      setCanUndoBranding(false);
     } catch (error) {
       setManageStatus("error");
       setManageMessage(error.message || "Unable to initialize admin state.");
@@ -1218,6 +1676,44 @@ export default function AdminDashboard() {
   useEffect(() => {
     loadHeaderData();
   }, [loadHeaderData]);
+
+  useEffect(() => {
+    latestBrandSettingsDraftRef.current = brandSettingsDraft;
+  }, [brandSettingsDraft]);
+
+  useEffect(() => {
+    if (selectedFontIsExtended) {
+      setShowExtendedBrandFonts(true);
+    }
+  }, [selectedFontIsExtended]);
+
+  useLayoutEffect(() => {
+    applySiteSettingsToDocument(normalizedBrandSettingsDraft);
+  }, [normalizedBrandSettingsDraft]);
+
+  useEffect(() => {
+    if (brandingAutoSaveTimerRef.current) {
+      window.clearTimeout(brandingAutoSaveTimerRef.current);
+      brandingAutoSaveTimerRef.current = null;
+    }
+
+    if (!isBrandingDirty || isSavingBranding) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      saveBrandingSettings(latestBrandSettingsDraftRef.current);
+    }, 700);
+
+    brandingAutoSaveTimerRef.current = timeoutId;
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      if (brandingAutoSaveTimerRef.current === timeoutId) {
+        brandingAutoSaveTimerRef.current = null;
+      }
+    };
+  }, [isBrandingDirty, isSavingBranding, normalizedBrandSettingsDraftKey, saveBrandingSettings]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -1437,6 +1933,21 @@ export default function AdminDashboard() {
       document.removeEventListener("mousedown", handleOutsidePointer);
       document.removeEventListener("touchstart", handleOutsidePointer);
     };
+  }, [showLibraryToolsMenu]);
+
+  useEffect(() => {
+    if (!showLibraryToolsMenu) {
+      return undefined;
+    }
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setShowLibraryToolsMenu(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
   }, [showLibraryToolsMenu]);
 
   useEffect(() => {
@@ -3062,24 +3573,35 @@ export default function AdminDashboard() {
   };
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-[1680px] px-4 py-8 text-[16px] text-foreground sm:px-8 sm:py-10 lg:px-12 [&_.text-muted]:text-foreground/74 [&_button]:font-semibold [&_button]:tracking-[0.06em] [&_button]:transition-all [&_button]:duration-150 [&_input]:rounded-md [&_input]:border-zinc-400 [&_input]:bg-white [&_input]:text-[16px] [&_input]:text-foreground [&_input:focus]:ring-2 [&_input:focus]:ring-foreground/20 [&_select]:rounded-md [&_select]:border-zinc-400 [&_select]:bg-white [&_select]:text-[16px] [&_select]:text-foreground [&_select:focus]:ring-2 [&_select:focus]:ring-foreground/20 [&_textarea]:rounded-md [&_textarea]:border-zinc-400 [&_textarea]:bg-white [&_textarea]:text-[16px] [&_textarea]:text-foreground [&_textarea:focus]:ring-2 [&_textarea:focus]:ring-foreground/20 [&_label]:font-semibold [&_label]:tracking-normal [&_label]:normal-case [&_summary]:tracking-normal [&_summary]:normal-case">
+    <main
+      id="main-content"
+      className={`admin-shell mx-auto w-full max-w-[1680px] px-4 py-8 text-foreground sm:px-8 sm:py-10 lg:px-12 [&_button]:font-semibold [&_button]:tracking-[0.06em] [&_button]:transition-all [&_button]:duration-150 [&_input]:rounded-md [&_input]:border-zinc-400 [&_input]:bg-white [&_input]:text-foreground [&_input:focus]:ring-2 [&_input:focus]:ring-foreground/20 [&_select]:rounded-md [&_select]:border-zinc-400 [&_select]:bg-white [&_select]:text-foreground [&_select:focus]:ring-2 [&_select:focus]:ring-foreground/20 [&_textarea]:rounded-md [&_textarea]:border-zinc-400 [&_textarea]:bg-white [&_textarea]:text-foreground [&_textarea:focus]:ring-2 [&_textarea:focus]:ring-foreground/20 [&_label]:font-semibold [&_label]:tracking-normal [&_label]:normal-case [&_summary]:tracking-normal [&_summary]:normal-case ${adminTypeScaleClass}`}
+    >
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-[12px] tracking-[0.18em] text-muted uppercase">Admin Workspace</p>
-          <h1 className="display-font mt-2 text-4xl leading-none text-foreground drop-shadow-[0_1px_0_rgba(0,0,0,0.1)] sm:text-5xl">Photo Control Room</h1>
-          <p className="mt-3 max-w-2xl text-sm text-foreground/75">
+          <p className="text-[13px] font-semibold tracking-[0.18em] text-zinc-800 uppercase">Admin Workspace</p>
+          <h1 className="display-font mt-2 text-[2.9rem] font-semibold leading-none tracking-[-0.055em] text-foreground drop-shadow-[0_1px_0_rgba(0,0,0,0.08)] sm:text-[3.6rem]">
+            Photo Control Room
+          </h1>
+          <p className="mt-3 max-w-2xl text-[17px] font-medium leading-relaxed text-zinc-800 sm:text-[1.18rem]">
             Curate homepage highlights, manage library metadata, and keep drafts private until ready.
           </p>
         </div>
 
-        <div className="text-left text-xs tracking-[0.14em] text-muted uppercase sm:text-right">
-          <p>Cloudinary: {ready ? "Connected" : "Not Configured"}</p>
-          <p className="mt-1">Loaded: {photos.length} of {totalPhotos}</p>
-          <p className="mt-1">Unsaved edits: {dirtyPhotoCount}</p>
+        <div className="rounded-[1.25rem] border border-zinc-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(246,244,240,0.94)_100%)] px-4 py-3 text-left shadow-[0_14px_30px_rgba(0,0,0,0.06)] sm:min-w-[250px] sm:text-right">
+          <p className="text-[11px] font-semibold tracking-[0.16em] text-zinc-800 uppercase">
+            Cloudinary: <span className="text-foreground">{ready ? "Connected" : "Not Configured"}</span>
+          </p>
+          <p className="mt-1 text-[11px] font-semibold tracking-[0.16em] text-zinc-800 uppercase">
+            Loaded: <span className="text-foreground">{photos.length} of {totalPhotos}</span>
+          </p>
+          <p className="mt-1 text-[11px] font-semibold tracking-[0.16em] text-zinc-800 uppercase">
+            Unsaved edits: <span className="text-foreground">{dirtyPhotoCount}</span>
+          </p>
         </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-2 border-b border-line pb-3">
+      <div className="mt-6 flex flex-wrap gap-2 rounded-[1.5rem] border border-line bg-[linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(246,244,240,0.92)_100%)] p-2 shadow-[0_14px_34px_rgba(0,0,0,0.06)]">
         <button
           type="button"
           onClick={() => requestWorkspaceTabChange("upload")}
@@ -3103,6 +3625,13 @@ export default function AdminDashboard() {
         </button>
         <button
           type="button"
+          onClick={() => requestWorkspaceTabChange("branding")}
+          className={getWorkspaceTabClass("branding", isBrandingTab)}
+        >
+          Branding
+        </button>
+        <button
+          type="button"
           onClick={() => requestWorkspaceTabChange("drafts")}
           className={getWorkspaceTabClass("drafts", isDraftsTab)}
         >
@@ -3113,17 +3642,1486 @@ export default function AdminDashboard() {
         </Link>
       </div>
 
-      {isUploadTab ? (
-        <section className="mt-6 rounded-2xl border border-line bg-[linear-gradient(180deg,rgba(255,255,255,0.99)_0%,rgba(252,249,244,0.95)_100%)] p-4 shadow-[0_14px_38px_rgba(0,0,0,0.08)] sm:p-6">
+      {isBrandingTab ? (
+        <section className="mt-5 space-y-5">
+          <section className="rounded-[1.85rem] border border-zinc-300/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.99)_0%,rgba(246,243,236,0.98)_100%)] p-4 shadow-[0_20px_48px_rgba(15,23,42,0.08)] sm:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="max-w-2xl">
+                <p className="text-[11px] font-semibold tracking-[0.12em] text-zinc-700 uppercase">Navbar + Website Theme</p>
+                <h2 className="mt-2 text-[1.95rem] font-semibold tracking-[-0.035em] text-zinc-950 sm:text-[2.25rem]">
+                  Branding Studio
+                </h2>
+                <p className="mt-2.5 max-w-xl text-sm text-zinc-700">
+                  Shape the navbar, logo, type, and site mood from one compact control console.
+                </p>
+                <p className="mt-2 text-xs text-zinc-600">
+                  Auto-saves are on. Undo steps back one move, and Reset returns you to the original Classic baseline.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={`rounded-full border px-3 py-2 text-[10px] tracking-[0.14em] uppercase ${
+                    brandingStatus === "error"
+                      ? "border-red-300 bg-red-50 text-red-800"
+                    : brandingStatus === "warning"
+                        ? "border-amber-300 bg-amber-50 text-amber-800"
+                        : isPreparingBrandLogo
+                          ? "border-violet-300 bg-violet-50 text-violet-800"
+                        : isSavingBranding
+                          ? "border-sky-300 bg-sky-50 text-sky-800"
+                          : isBrandingDirty
+                      ? "border-amber-300 bg-amber-50 text-amber-800"
+                      : "border-emerald-300 bg-emerald-50 text-emerald-800"
+                  }`}
+                >
+                  {brandingStatus === "error"
+                    ? "Needs Attention"
+                    : brandingStatus === "warning"
+                      ? "Session Only"
+                      : isPreparingBrandLogo
+                        ? "Preparing Logo"
+                      : isSavingBranding
+                        ? "Auto-Saving"
+                        : isBrandingDirty
+                          ? "Unsaved Changes"
+                    : "Auto-Saved"}
+                </span>
+                <button
+                  type="button"
+                  onClick={resetBrandingToOriginal}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-zinc-300 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(246,244,240,0.96)_100%)] px-5 text-[12px] text-zinc-900 shadow-[0_8px_20px_rgba(0,0,0,0.05)] hover:border-zinc-500"
+                >
+                  Reset to Original
+                </button>
+                <button
+                  type="button"
+                  onClick={undoBrandingDraftChange}
+                  disabled={!canUndoBranding}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-zinc-300 bg-white px-5 text-[12px] text-zinc-900 shadow-[0_8px_20px_rgba(0,0,0,0.05)] hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  <span className="h-4 w-4">
+                    <UndoIcon />
+                  </span>
+                  Undo
+                </button>
+              </div>
+            </div>
+
+            {brandingMessage && brandingStatus !== "success" ? (
+              <p
+                className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${
+                  brandingStatus === "error"
+                    ? "border-red-200 bg-red-50 text-red-700"
+                    : brandingStatus === "warning"
+                      ? "border-amber-200 bg-amber-50 text-amber-700"
+                      : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                }`}
+              >
+                {brandingMessage}
+              </p>
+            ) : null}
+          </section>
+
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.18fr)_minmax(300px,0.82fr)]">
+            <section className="rounded-[1.6rem] border border-zinc-300/75 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(248,247,244,0.98)_100%)] p-4 shadow-[0_16px_38px_rgba(15,23,42,0.06)] sm:p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold tracking-[0.1em] text-zinc-700 uppercase">Wordmark</p>
+                  <h3 className="mt-1 text-[1.35rem] font-semibold tracking-[-0.02em] text-zinc-950">Choose the navbar name</h3>
+                </div>
+                <span className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-[10px] tracking-[0.14em] text-zinc-600 uppercase">
+                  Max 48 Characters
+                </span>
+              </div>
+
+              <label className="mt-5 block text-sm">
+                Navbar title
+                <input
+                  type="text"
+                  value={brandSettingsDraft.brandName}
+                  onChange={(event) =>
+                    applyBrandingDraftChange((current) => ({
+                      ...current,
+                      brandName: event.target.value.slice(0, 48),
+                    }))
+                  }
+                  placeholder={siteBrand.name}
+                  maxLength={48}
+                  className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-[15px] shadow-[0_10px_24px_rgba(0,0,0,0.04)] outline-none focus:border-zinc-900/35 focus:ring-0"
+                />
+              </label>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="rounded-[1.35rem] border border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(248,248,248,0.94)_100%)] p-4">
+                  <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Current Font</p>
+                  <p className="mt-2 text-base font-semibold text-zinc-950">{selectedBrandFontOption.label}</p>
+                  <p className="mt-1 text-sm text-zinc-600">{selectedBrandFontOption.note}</p>
+                </div>
+                <div className="rounded-[1.35rem] border border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(248,248,248,0.94)_100%)] p-4">
+                  <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Brand Setup</p>
+                  <div className="mt-2 flex items-center gap-3">
+                    <span className="inline-flex items-center gap-2 text-sm text-zinc-700">
+                      <span
+                        className="h-4 w-4 rounded-full border border-black/10"
+                        style={{ backgroundColor: normalizedBrandSettingsDraft.textColor }}
+                      />
+                      Text
+                    </span>
+                    <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-700">
+                      {isUsingUploadedBrandLogo
+                        ? "PNG Logo Active"
+                        : hasUploadedBrandLogo
+                          ? "Original Mark Active"
+                          : "Original Mark"}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs text-zinc-500">
+                    Upload a PNG any time, then swap back to the original logo whenever you want.
+                  </p>
+                  <p className="mt-3 text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Active Theme</p>
+                  <p className="mt-1 text-sm font-semibold text-zinc-950">{selectedSiteTheme.label}</p>
+                  <p className="mt-1 text-xs text-zinc-500">{selectedSiteTheme.description}</p>
+                </div>
+              </div>
+            </section>
+
+            <aside className="self-start rounded-[1.6rem] border border-zinc-300/75 bg-[linear-gradient(180deg,rgba(252,252,251,1)_0%,rgba(245,242,236,0.98)_100%)] p-4 shadow-[0_18px_42px_rgba(15,23,42,0.08)] sm:p-5 xl:sticky xl:top-[7.25rem]">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold tracking-[0.1em] text-zinc-700 uppercase">Live Preview</p>
+                  <h3 className="mt-1 text-[1.35rem] font-semibold tracking-[-0.02em] text-zinc-950">How the chrome looks live</h3>
+                </div>
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[10px] font-semibold tracking-[0.14em] text-emerald-700 uppercase">
+                  Live
+                </span>
+              </div>
+              <div
+                className="mt-4 overflow-hidden rounded-[1.45rem] border border-zinc-200/90 bg-[linear-gradient(180deg,rgba(249,249,247,0.98)_0%,rgba(249,249,247,0.93)_100%)] shadow-[0_14px_30px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.8)]"
+                style={brandingPreviewVars}
+              >
+                <div
+                  className="border-b p-4"
+                  style={{
+                    background: "var(--header-bg)",
+                    borderColor: "var(--header-border)",
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <BrandLogoMark
+                        settings={normalizedBrandSettingsDraft}
+                        className="h-10 w-14"
+                      />
+                      <span
+                        className={`logo-font block min-w-0 whitespace-normal break-words text-balance ${brandingPreviewClass}`}
+                        style={brandingPreviewStyle}
+                      >
+                        {brandingSampleName}
+                      </span>
+                    </div>
+                    <div
+                      className="hidden items-center gap-4 text-[10px] tracking-[0.14em] uppercase sm:flex"
+                      style={{ color: "var(--header-muted)" }}
+                    >
+                      <span style={{ color: "var(--header-ink)" }}>Gallery</span>
+                      <span>About</span>
+                      <span>Contact</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4">
+                  <div className="rounded-[1.2rem] border border-zinc-200 bg-white/72 p-4">
+                    <p className="text-[10px] tracking-[0.14em] text-zinc-500 uppercase">Page content</p>
+                    <div className="mt-3 h-3 w-2/3 rounded-full bg-zinc-900/14" />
+                    <div className="mt-2 h-2.5 w-full rounded-full bg-zinc-900/8" />
+                    <div className="mt-1.5 h-2.5 w-5/6 rounded-full bg-zinc-900/8" />
+                  </div>
+                </div>
+
+                <div
+                  className="border-t px-4 py-3"
+                  style={{
+                    background: "var(--footer-bg)",
+                    borderColor: "var(--footer-border)",
+                    color: "var(--footer-muted)",
+                  }}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3 text-[10px] tracking-[0.14em] uppercase">
+                    <span style={{ color: "var(--footer-link)" }}>Instagram</span>
+                    <span>Contact</span>
+                    <span>© {new Date().getFullYear()} {brandingSampleName}</span>
+                  </div>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-zinc-600">
+                Changes apply here instantly, so you can keep designing while the preview stays in view.
+              </p>
+            </aside>
+          </div>
+
+          <section className="rounded-[1.6rem] border border-zinc-300/75 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(247,246,243,0.98)_100%)] p-4 shadow-[0_16px_38px_rgba(15,23,42,0.06)] sm:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold tracking-[0.1em] text-zinc-700 uppercase">Website Themes</p>
+                <h3 className="mt-1 text-[1.35rem] font-semibold tracking-[-0.02em] text-zinc-950">Choose the site mood</h3>
+                <p className="mt-1.5 max-w-2xl text-sm text-zinc-700">
+                  Pick a preset to restyle the site instantly, then fine-tune from there.
+                </p>
+              </div>
+              <div className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-[10px] tracking-[0.14em] text-zinc-600 uppercase">
+                Active: {selectedSiteTheme.label}
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+              {SITE_THEME_PRESETS.map((theme) => {
+                const isSelected = normalizedBrandSettingsDraft.themeKey === theme.key;
+                const themePreviewVars = getSiteThemeCssVariables(theme.key);
+
+                return (
+                  <button
+                    key={theme.key}
+                    type="button"
+                    onClick={() =>
+                      applyBrandingDraftChange((current) => ({
+                        ...current,
+                        themeKey: theme.key,
+                        navbarColorMode: "theme",
+                        footerColorMode: "theme",
+                      }))
+                    }
+                    aria-pressed={isSelected}
+                    className={`group rounded-[1.2rem] border p-3.5 text-left transition-all ${
+                      isSelected
+                        ? "border-zinc-950 bg-zinc-950 text-white ring-1 ring-zinc-950 shadow-[0_18px_32px_rgba(17,17,17,0.18)]"
+                        : "border-zinc-300 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(249,249,249,0.98)_100%)] text-zinc-950 hover:-translate-y-0.5 hover:border-zinc-500 hover:shadow-[0_14px_26px_rgba(15,23,42,0.10)]"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-semibold tracking-[0.1em] uppercase">{theme.label}</p>
+                        <p className={`mt-1 text-[12px] leading-5 ${isSelected ? "text-white/76" : "text-zinc-600"}`}>
+                          {theme.description}
+                        </p>
+                      </div>
+                      <span
+                        className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold tracking-[0.14em] uppercase transition-all ${
+                          isSelected
+                            ? "border-white/20 bg-white/10 text-white"
+                            : "border-zinc-900 bg-zinc-900 text-white shadow-[0_8px_16px_rgba(17,17,17,0.12)] group-hover:bg-zinc-800"
+                        }`}
+                      >
+                        {isSelected ? "Selected" : "Apply"}
+                      </span>
+                    </div>
+
+                    <div
+                      className="mt-3 overflow-hidden rounded-[1.05rem] border"
+                      style={{
+                        ...themePreviewVars,
+                        borderColor: "var(--line)",
+                        background: "var(--paper)",
+                      }}
+                    >
+                      <div
+                        className="flex items-center justify-between border-b px-2.5 py-2"
+                        style={{
+                          borderColor: "var(--header-border)",
+                          background: "var(--header-bg)",
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="h-3.5 w-3.5 rounded-full"
+                            style={{ background: "var(--accent)" }}
+                            aria-hidden="true"
+                          />
+                          <span
+                            className="text-[10px] font-semibold tracking-[0.12em] uppercase"
+                            style={{ color: "var(--header-ink)" }}
+                          >
+                            {theme.label}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="hidden items-center gap-1 text-[9px] tracking-[0.14em] uppercase sm:flex">
+                            <span style={{ color: "var(--header-ink)" }}>Browse</span>
+                            <span style={{ color: "var(--header-muted)" }}>Archive</span>
+                          </div>
+                          {theme.palette.map((color) => (
+                            <span
+                              key={`${theme.key}-${color}`}
+                              className="h-3 w-3 rounded-full border"
+                              style={{ backgroundColor: color, borderColor: "rgba(0,0,0,0.08)" }}
+                              aria-hidden="true"
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2.5 p-2.5">
+                        <div
+                          className="rounded-[0.9rem] border p-2.5"
+                          style={{
+                            background: "var(--surface)",
+                            borderColor: "var(--line)",
+                            boxShadow: "var(--shadow-soft)",
+                          }}
+                        >
+                          <div className="h-2.5 w-2/3 rounded-full" style={{ background: "var(--primary)" }} />
+                          <div className="mt-2 h-2 w-full rounded-full" style={{ background: "var(--secondary)", opacity: 0.36 }} />
+                          <div className="mt-1.5 h-2 w-5/6 rounded-full" style={{ background: "var(--secondary)", opacity: 0.24 }} />
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="inline-flex rounded-full border px-2.5 py-1 text-[9px] font-semibold tracking-[0.14em] uppercase"
+                            style={{
+                              borderColor: "var(--button-primary-border)",
+                              background: "var(--button-primary-bg)",
+                              color: "var(--button-primary-text)",
+                            }}
+                          >
+                            Primary
+                          </span>
+                          <span
+                            className="inline-flex rounded-full border px-2.5 py-1 text-[9px] font-semibold tracking-[0.14em] uppercase"
+                            style={{
+                              borderColor: "var(--button-secondary-border)",
+                              background: "var(--button-secondary-bg)",
+                              color: "var(--button-secondary-text)",
+                            }}
+                          >
+                            Secondary
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] tracking-[0.14em] uppercase" style={{ color: "var(--link)" }}>
+                            Link color
+                          </span>
+                          <span className="text-[10px] tracking-[0.14em] uppercase" style={{ color: "var(--secondary)" }}>
+                            {theme.key}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="rounded-[1.6rem] border border-zinc-300/75 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(247,246,243,0.98)_100%)] p-4 shadow-[0_16px_38px_rgba(15,23,42,0.06)] sm:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold tracking-[0.1em] text-zinc-700 uppercase">Fonts</p>
+                <h3 className="mt-1 text-[1.35rem] font-semibold tracking-[-0.02em] text-zinc-950">Pick a wordmark style</h3>
+                <p className="mt-1.5 text-sm text-zinc-700">
+                  Compare directions quickly without losing the live brand preview.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowExtendedBrandFonts((current) => !current)}
+                className="inline-flex h-10 items-center justify-center rounded-full border border-zinc-300 bg-white px-4 text-[11px] font-semibold tracking-[0.12em] text-zinc-800 uppercase shadow-[0_8px_18px_rgba(0,0,0,0.04)] hover:border-zinc-500 hover:bg-zinc-50"
+              >
+                {showExtendedBrandFonts ? "Hide More Fonts" : "More Fonts"}
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+              {primaryBrandFontOptions.map((option) => {
+                const isSelected = normalizedBrandSettingsDraft.fontKey === option.key;
+
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() =>
+                      applyBrandingDraftChange((current) => ({
+                        ...current,
+                        fontKey: option.key,
+                      }))
+                    }
+                    className={`group rounded-[1.15rem] border p-3.5 text-left transition-all ${
+                      isSelected
+                        ? "border-zinc-950 bg-zinc-950 text-white ring-1 ring-zinc-950 shadow-[0_16px_30px_rgba(17,17,17,0.18)]"
+                        : "border-zinc-300 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(249,249,249,0.96)_100%)] text-zinc-950 hover:-translate-y-0.5 hover:border-zinc-500 hover:shadow-[0_12px_24px_rgba(15,23,42,0.08)]"
+                    } disabled:cursor-not-allowed disabled:opacity-45`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-semibold tracking-[0.1em] uppercase">{option.label}</p>
+                        <p className={`mt-1 text-[12px] leading-5 ${isSelected ? "text-white/75" : "text-zinc-600"}`}>
+                          {option.note}
+                        </p>
+                      </div>
+                      <span
+                        className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold tracking-[0.14em] uppercase transition-all ${
+                          isSelected
+                            ? "border-white/25 bg-white/10 text-white"
+                            : "border-zinc-900 bg-zinc-900 text-white shadow-[0_8px_16px_rgba(17,17,17,0.12)] group-hover:bg-zinc-800"
+                        }`}
+                      >
+                        {isSelected ? "Active" : "Use"}
+                      </span>
+                    </div>
+
+                    <p
+                      className="mt-4 min-h-[54px] break-words text-[1.45rem] leading-[0.95]"
+                      style={{
+                        ...option.style,
+                        color: isSelected ? "#FFFFFF" : normalizedBrandSettingsDraft.textColor,
+                      }}
+                    >
+                      {brandingSampleName}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {showExtendedBrandFonts ? (
+              <div className="mt-5 border-t border-zinc-200 pt-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-semibold tracking-[0.1em] text-zinc-700 uppercase">More Fonts</p>
+                    <h4 className="mt-1 text-lg font-semibold text-zinc-950">Street and hip-hop inspired styles</h4>
+                    <p className="mt-1.5 text-sm text-zinc-700">
+                      Heavier, louder presets for a mixtape, flyer, or block-party feel.
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-[10px] tracking-[0.14em] text-zinc-600 uppercase">
+                    Extra Styles
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+                  {extendedBrandFontOptions.map((option) => {
+                    const isSelected = normalizedBrandSettingsDraft.fontKey === option.key;
+
+                    return (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() =>
+                          applyBrandingDraftChange((current) => ({
+                            ...current,
+                            fontKey: option.key,
+                          }))
+                        }
+                        className={`group rounded-[1.15rem] border p-3.5 text-left transition-all ${
+                          isSelected
+                            ? "border-zinc-950 bg-zinc-950 text-white ring-1 ring-zinc-950 shadow-[0_16px_30px_rgba(17,17,17,0.18)]"
+                            : "border-zinc-300 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(249,249,249,0.96)_100%)] text-zinc-950 hover:-translate-y-0.5 hover:border-zinc-500 hover:shadow-[0_12px_24px_rgba(15,23,42,0.08)]"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[11px] font-semibold tracking-[0.1em] uppercase">{option.label}</p>
+                            <p className={`mt-1 text-[12px] leading-5 ${isSelected ? "text-white/75" : "text-zinc-600"}`}>
+                              {option.note}
+                            </p>
+                          </div>
+                          <span
+                            className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold tracking-[0.14em] uppercase transition-all ${
+                              isSelected
+                                ? "border-white/25 bg-white/10 text-white"
+                                : "border-zinc-900 bg-zinc-900 text-white shadow-[0_8px_16px_rgba(17,17,17,0.12)] group-hover:bg-zinc-800"
+                            }`}
+                          >
+                            {isSelected ? "Active" : "Use"}
+                          </span>
+                        </div>
+
+                        <p
+                          className="mt-4 min-h-[54px] break-words text-[1.45rem] leading-[0.95]"
+                          style={{
+                            ...option.style,
+                            color: isSelected ? "#FFFFFF" : normalizedBrandSettingsDraft.textColor,
+                          }}
+                        >
+                          {brandingSampleName}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </section>
+
+          <section className="rounded-[1.6rem] border border-zinc-300/75 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(247,246,243,0.98)_100%)] p-4 shadow-[0_16px_38px_rgba(15,23,42,0.06)] sm:p-5">
+            <div>
+              <p className="text-[11px] font-semibold tracking-[0.1em] text-zinc-700 uppercase">Colors + Logo</p>
+              <h3 className="mt-1 text-[1.35rem] font-semibold tracking-[-0.02em] text-zinc-950">Tune the wordmark and logo</h3>
+              <p className="mt-1.5 text-sm text-zinc-700">
+                Set colors fast, upload a PNG if you want, and keep the original mark ready as a fallback.
+              </p>
+            </div>
+
+            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+              <section className="rounded-[1.4rem] border border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(249,249,249,0.96)_100%)] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Wordmark Color</p>
+                    <h4 className="mt-1 text-base font-semibold text-zinc-950">Navbar text</h4>
+                  </div>
+                  <label className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-2 text-[11px] tracking-[0.14em] text-zinc-600 uppercase">
+                    Custom
+                    <input
+                      type="color"
+                      value={normalizedBrandSettingsDraft.textColor}
+                      onChange={(event) =>
+                        applyBrandingDraftChange((current) => ({
+                          ...current,
+                          textColor: sanitizeBrandColor(event.target.value),
+                        }))
+                      }
+                      className="h-8 w-8 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {NAVBAR_BRAND_COLOR_OPTIONS.map((option) => (
+                    <ColorSwatchButton
+                      key={`text-${option.value}`}
+                      label={option.label}
+                      value={option.value}
+                      selected={normalizedBrandSettingsDraft.textColor === option.value}
+                      onClick={() =>
+                        applyBrandingDraftChange((current) => ({
+                          ...current,
+                          textColor: option.value,
+                        }))
+                      }
+                    />
+                  ))}
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4">
+                  <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Preview</p>
+                  <p
+                    className="mt-2 break-words text-[1.75rem] leading-[0.9]"
+                    style={{
+                      ...selectedBrandFontOption.style,
+                      color: normalizedBrandSettingsDraft.textColor,
+                    }}
+                  >
+                    {brandingSampleName}
+                  </p>
+                  <p className="mt-2 text-xs text-zinc-500">Current hex: {normalizedBrandSettingsDraft.textColor}</p>
+                </div>
+              </section>
+
+              <section className="rounded-[1.4rem] border border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(249,249,249,0.96)_100%)] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Logo Source</p>
+                    <h4 className="mt-1 text-base font-semibold text-zinc-950">Navbar logo mark</h4>
+                  </div>
+                  <span className="rounded-full border border-zinc-200 bg-white px-3 py-2 text-[10px] tracking-[0.14em] text-zinc-700 uppercase">
+                    {isUsingUploadedBrandLogo
+                      ? "Using PNG"
+                      : hasUploadedBrandLogo
+                        ? "Original Active"
+                        : "Original Only"}
+                  </span>
+                </div>
+
+                <input
+                  ref={brandLogoInputRef}
+                  type="file"
+                  accept=".png,image/png"
+                  onChange={handleBrandLogoFileChange}
+                  className="sr-only"
+                />
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {NAVBAR_LOGO_SOURCE_OPTIONS.map((option) => {
+                    const isDisabled = option.key === "custom" && !hasUploadedBrandLogo;
+                    const isSelected =
+                      option.key === "custom"
+                        ? isUsingUploadedBrandLogo
+                        : !isUsingUploadedBrandLogo;
+
+                    return (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() =>
+                          applyBrandingDraftChange((current) => ({
+                            ...current,
+                            logoMode: option.key,
+                          }))
+                        }
+                        disabled={isDisabled}
+                        className={`inline-flex h-10 items-center justify-center rounded-full border px-4 text-[11px] font-semibold tracking-[0.14em] uppercase transition-all ${
+                          isSelected
+                            ? "border-zinc-950 bg-zinc-950 text-white shadow-[0_10px_24px_rgba(17,17,17,0.16)]"
+                            : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 hover:text-zinc-950"
+                        } ${isDisabled ? "cursor-not-allowed opacity-45 hover:border-zinc-200 hover:text-zinc-700" : ""}`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    onClick={triggerBrandLogoPicker}
+                    disabled={isPreparingBrandLogo}
+                    className="group relative inline-flex h-11 items-center justify-center gap-2 overflow-hidden rounded-full border border-amber-300/70 bg-[linear-gradient(135deg,#171717_0%,#b45309_48%,#f59e0b_100%)] px-4 text-[11px] font-semibold tracking-[0.14em] text-white uppercase shadow-[0_14px_28px_rgba(180,83,9,0.24)] transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(180,83,9,0.28)] disabled:cursor-not-allowed disabled:opacity-55"
+                  >
+                    <span className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.32),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0))]" />
+                    <span className="relative flex h-6 w-6 items-center justify-center rounded-full border border-white/20 bg-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]">
+                      <UploadIcon />
+                    </span>
+                    <span className="relative">
+                      {hasUploadedBrandLogo ? "Replace PNG" : "Upload PNG"}
+                    </span>
+                  </button>
+                </div>
+
+                <p className="mt-3 text-xs text-zinc-500">
+                  PNG logos are scaled into a navbar-safe box automatically. The original mark always stays available.
+                </p>
+
+                <div className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4">
+                  <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Current navbar logo</p>
+                  <div className="mt-3 flex flex-wrap items-center gap-4">
+                    <BrandLogoMark
+                      settings={normalizedBrandSettingsDraft}
+                      className="h-14 w-20"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-zinc-950">
+                        {isUsingUploadedBrandLogo ? "Custom PNG is live" : "Original mark is live"}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {hasUploadedBrandLogo
+                          ? "Switch between the original mark and your uploaded PNG whenever you like."
+                          : "Upload a transparent PNG if you want a custom navbar logo."}
+                      </p>
+                    </div>
+                  </div>
+
+                  {hasUploadedBrandLogo ? (
+                    <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-3">
+                      <p className="text-[10px] tracking-[0.14em] text-zinc-500 uppercase">Uploaded PNG Preview</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
+                        <Image
+                          src={normalizedBrandSettingsDraft.customLogoDataUrl}
+                          alt=""
+                          width={220}
+                          height={88}
+                          unoptimized
+                          className="max-h-14 w-auto max-w-[11rem] object-contain"
+                          draggable={false}
+                        />
+                        <p className="text-xs text-zinc-500">
+                          Prepared for the navbar and saved with your branding settings.
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Original Mark Color</p>
+                      <h5 className="mt-1 text-sm font-semibold text-zinc-950">Fallback logo color</h5>
+                    </div>
+                    <label className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-2 text-[11px] tracking-[0.14em] text-zinc-600 uppercase">
+                      Custom
+                      <input
+                        type="color"
+                        value={normalizedBrandSettingsDraft.logoColor}
+                        onChange={(event) =>
+                          applyBrandingDraftChange((current) => ({
+                            ...current,
+                            logoColor: sanitizeBrandColor(event.target.value),
+                          }))
+                        }
+                        className="h-8 w-8 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                      />
+                    </label>
+                  </div>
+
+                  <p className="mt-2 text-xs text-zinc-500">
+                    This color stays ready for the built-in logo whenever you switch back from a PNG.
+                  </p>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {NAVBAR_BRAND_COLOR_OPTIONS.map((option) => (
+                      <ColorSwatchButton
+                        key={`logo-${option.value}`}
+                        label={option.label}
+                        value={option.value}
+                        selected={normalizedBrandSettingsDraft.logoColor === option.value}
+                        onClick={() =>
+                          applyBrandingDraftChange((current) => ({
+                            ...current,
+                            logoColor: option.value,
+                          }))
+                        }
+                      />
+                    ))}
+                  </div>
+
+                  <div className="mt-4 flex items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
+                    <BrandLogoMark
+                      settings={{
+                        ...normalizedBrandSettingsDraft,
+                        logoMode: "default",
+                      }}
+                      className="h-12 w-14"
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-zinc-950">Original mark preview</p>
+                      <p className="mt-1 text-xs text-zinc-500">Current hex: {normalizedBrandSettingsDraft.logoColor}</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section className="rounded-[1.6rem] border border-zinc-300/75 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(247,246,243,0.98)_100%)] p-4 shadow-[0_16px_38px_rgba(15,23,42,0.06)] sm:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold tracking-[0.1em] text-zinc-700 uppercase">Navbar + Footer</p>
+                <h3 className="mt-1 text-[1.35rem] font-semibold tracking-[-0.02em] text-zinc-950">Adjust the chrome</h3>
+                <p className="mt-1.5 max-w-2xl text-sm text-zinc-700">
+                  Stay on theme or switch either surface to custom colors, opacity, and text.
+                </p>
+              </div>
+              <span className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-[10px] tracking-[0.14em] text-zinc-600 uppercase">
+                Theme wins on preset switch
+              </span>
+            </div>
+
+            <div className="mt-5 grid gap-5 xl:grid-cols-2">
+              <section className="rounded-[1.45rem] border border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(248,248,248,0.96)_100%)] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Navbar Surface</p>
+                    <h4 className="mt-1 text-base font-semibold text-zinc-950">Header background and nav text</h4>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        applyBrandingDraftChange((current) => ({
+                          ...current,
+                          navbarColorMode: "theme",
+                        }))
+                      }
+                      className={`inline-flex h-9 items-center justify-center rounded-full border px-4 text-[11px] font-semibold tracking-[0.14em] uppercase transition-all ${
+                        normalizedBrandSettingsDraft.navbarColorMode === "theme"
+                          ? "border-zinc-950 bg-zinc-950 text-white"
+                          : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 hover:text-zinc-950"
+                      }`}
+                    >
+                      Theme
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        applyBrandingDraftChange((current) => ({
+                          ...current,
+                          navbarColorMode: "custom",
+                        }))
+                      }
+                      className={`inline-flex h-9 items-center justify-center rounded-full border px-4 text-[11px] font-semibold tracking-[0.14em] uppercase transition-all ${
+                        normalizedBrandSettingsDraft.navbarColorMode === "custom"
+                          ? "border-zinc-950 bg-zinc-950 text-white"
+                          : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 hover:text-zinc-950"
+                      }`}
+                    >
+                      Custom
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-3.5">
+                  <div
+                    className="rounded-[1.2rem] border p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]"
+                    style={{
+                      background: brandingPreviewVars["--header-bg"],
+                      borderColor: brandingPreviewVars["--header-border"],
+                      color: brandingPreviewVars["--header-muted"],
+                    }}
+                  >
+                    <p className="text-[10px] font-semibold tracking-[0.14em] uppercase" style={{ color: brandingPreviewVars["--header-ink"] }}>
+                      Navbar Preview
+                    </p>
+                    <div className="mt-2 flex items-center justify-between gap-3 text-[10px] tracking-[0.14em] uppercase">
+                      <span style={{ color: brandingPreviewVars["--header-ink"] }}>Gallery</span>
+                      <span>About</span>
+                      <span>Contact</span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-zinc-600">
+                    Wordmark color stays separate in the logo section above. This panel only changes the navbar surface and navigation text.
+                  </p>
+
+                  <div className={`space-y-3.5 ${normalizedBrandSettingsDraft.navbarColorMode === "theme" ? "opacity-55" : ""}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Surface Style</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            applyBrandingDraftChange((current) => ({
+                              ...current,
+                              navbarColorMode: "custom",
+                              navbarFillStyle: "solid",
+                            }))
+                          }
+                          className={`inline-flex h-9 items-center justify-center rounded-full border px-4 text-[11px] font-semibold tracking-[0.14em] uppercase transition-all ${
+                            normalizedBrandSettingsDraft.navbarFillStyle === "solid"
+                              ? "border-zinc-950 bg-zinc-950 text-white"
+                              : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 hover:text-zinc-950"
+                          }`}
+                          disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
+                        >
+                          Solid
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveNavbarPaletteTarget("start");
+                            applyBrandingDraftChange((current) => ({
+                              ...current,
+                              navbarColorMode: "custom",
+                              navbarFillStyle: "gradient",
+                            }));
+                          }}
+                          className={`inline-flex h-9 items-center justify-center rounded-full border px-4 text-[11px] font-semibold tracking-[0.14em] uppercase transition-all ${
+                            normalizedBrandSettingsDraft.navbarFillStyle === "gradient"
+                              ? "border-zinc-950 bg-zinc-950 text-white"
+                              : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 hover:text-zinc-950"
+                          }`}
+                          disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
+                        >
+                          Gradient
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-[1.15rem] border border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,248,248,0.96)_100%)] p-3.5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Color Controls</p>
+                          <p className="mt-1 text-sm text-zinc-700">
+                            {normalizedBrandSettingsDraft.navbarFillStyle === "gradient"
+                              ? `Choose a stop, then use one shared palette to update ${activeNavbarSurfaceLabel.toLowerCase()}.`
+                              : "Choose the navbar background color from one shared palette."}
+                          </p>
+                        </div>
+                        <label className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-2 text-[11px] tracking-[0.14em] text-zinc-600 uppercase shadow-[0_6px_16px_rgba(0,0,0,0.04)]">
+                          Custom
+                          <input
+                            type="color"
+                            value={activeNavbarSurfaceValue}
+                            onChange={(event) => applyNavbarSurfaceColor(sanitizeBrandColor(event.target.value))}
+                            className="h-8 w-8 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                            disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
+                          />
+                        </label>
+                      </div>
+
+                      {normalizedBrandSettingsDraft.navbarFillStyle === "gradient" ? (
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          <button
+                            type="button"
+                            onClick={() => setActiveNavbarPaletteTarget("start")}
+                            disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
+                            className={`flex items-center gap-3 rounded-[1rem] border px-3 py-2.5 text-left transition-all ${
+                              activeNavbarPaletteTarget === "start"
+                                ? "border-zinc-950 bg-zinc-950 text-white shadow-[0_12px_28px_rgba(17,17,17,0.16)]"
+                                : "border-zinc-200 bg-white text-zinc-900 hover:border-zinc-400"
+                            } disabled:cursor-not-allowed disabled:opacity-45`}
+                          >
+                            <span
+                              className={`h-4 w-4 rounded-full border ${activeNavbarPaletteTarget === "start" ? "border-white/65" : "border-black/10"}`}
+                              style={{ backgroundColor: normalizedBrandSettingsDraft.navbarBackgroundColor }}
+                              aria-hidden="true"
+                            />
+                            <span className="min-w-0">
+                              <span className={`block text-[10px] tracking-[0.14em] uppercase ${activeNavbarPaletteTarget === "start" ? "text-white/72" : "text-zinc-500"}`}>
+                                Start Color
+                              </span>
+                              <span className="mt-0.5 block truncate text-sm font-semibold">{navbarStartColorName}</span>
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setActiveNavbarPaletteTarget("end")}
+                            disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
+                            className={`flex items-center gap-3 rounded-[1rem] border px-3 py-2.5 text-left transition-all ${
+                              activeNavbarPaletteTarget === "end"
+                                ? "border-zinc-950 bg-zinc-950 text-white shadow-[0_12px_28px_rgba(17,17,17,0.16)]"
+                                : "border-zinc-200 bg-white text-zinc-900 hover:border-zinc-400"
+                            } disabled:cursor-not-allowed disabled:opacity-45`}
+                          >
+                            <span
+                              className={`h-4 w-4 rounded-full border ${activeNavbarPaletteTarget === "end" ? "border-white/65" : "border-black/10"}`}
+                              style={{ backgroundColor: normalizedBrandSettingsDraft.navbarGradientColor }}
+                              aria-hidden="true"
+                            />
+                            <span className="min-w-0">
+                              <span className={`block text-[10px] tracking-[0.14em] uppercase ${activeNavbarPaletteTarget === "end" ? "text-white/72" : "text-zinc-500"}`}>
+                                End Color
+                              </span>
+                              <span className="mt-0.5 block truncate text-sm font-semibold">{navbarEndColorName}</span>
+                            </span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="mt-3 flex items-center gap-3 rounded-[1rem] border border-zinc-200 bg-white px-3 py-2.5 shadow-[0_8px_18px_rgba(0,0,0,0.04)]">
+                          <span
+                            className="h-4 w-4 rounded-full border border-black/10"
+                            style={{ backgroundColor: normalizedBrandSettingsDraft.navbarBackgroundColor }}
+                            aria-hidden="true"
+                          />
+                          <div className="min-w-0">
+                            <p className="text-[10px] tracking-[0.14em] text-zinc-500 uppercase">Background Color</p>
+                            <p className="truncate text-sm font-semibold text-zinc-900">{navbarStartColorName}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">
+                          Palette editing {activeNavbarSurfaceLabel.toLowerCase()}
+                        </p>
+                        <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-[11px] font-medium text-zinc-700 shadow-[0_6px_16px_rgba(0,0,0,0.04)]">
+                          <span
+                            className="h-3.5 w-3.5 rounded-full border border-black/10"
+                            style={{ backgroundColor: activeNavbarSurfaceValue }}
+                            aria-hidden="true"
+                          />
+                          {activeNavbarSurfaceName}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {CHROME_BACKGROUND_COLOR_OPTIONS.map((option) => (
+                          <CompactColorChipButton
+                            key={`navbar-surface-${option.value}`}
+                            label={option.label}
+                            value={option.value}
+                            selected={activeNavbarSurfaceValue === option.value}
+                            onClick={() => applyNavbarSurfaceColor(option.value)}
+                            disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    <label className="block rounded-[1.15rem] border border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,248,248,0.96)_100%)] p-3.5 text-sm text-zinc-700">
+                      <span className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Opacity</span>
+                      <div className="mt-2 flex items-center gap-3">
+                        <input
+                          type="range"
+                          min="25"
+                          max="100"
+                          step="1"
+                          value={normalizedBrandSettingsDraft.navbarOpacity}
+                          onChange={(event) =>
+                            applyBrandingDraftChange((current) => ({
+                              ...current,
+                              navbarColorMode: "custom",
+                              navbarOpacity: Number(event.target.value),
+                            }))
+                          }
+                          className="h-2 flex-1 accent-zinc-900"
+                          disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
+                        />
+                        <span className="min-w-[3rem] rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-center text-xs font-semibold text-zinc-800">
+                          {normalizedBrandSettingsDraft.navbarOpacity}%
+                        </span>
+                      </div>
+                    </label>
+
+                    <div className="rounded-[1.15rem] border border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,248,248,0.96)_100%)] p-3.5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Nav Text Color</p>
+                          <p className="mt-1 text-sm text-zinc-700">Keep links readable while matching the new surface.</p>
+                        </div>
+                        <label className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-2 text-[11px] tracking-[0.14em] text-zinc-600 uppercase shadow-[0_6px_16px_rgba(0,0,0,0.04)]">
+                          Custom
+                          <input
+                            type="color"
+                            value={normalizedBrandSettingsDraft.navbarTextColor}
+                            onChange={(event) =>
+                              applyBrandingDraftChange((current) => ({
+                                ...current,
+                                navbarColorMode: "custom",
+                                navbarTextColor: sanitizeBrandColor(event.target.value),
+                              }))
+                            }
+                            className="h-8 w-8 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                            disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
+                          />
+                        </label>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Current text color</p>
+                        <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-[11px] font-medium text-zinc-700 shadow-[0_6px_16px_rgba(0,0,0,0.04)]">
+                          <span
+                            className="h-3.5 w-3.5 rounded-full border border-black/10"
+                            style={{ backgroundColor: normalizedBrandSettingsDraft.navbarTextColor }}
+                            aria-hidden="true"
+                          />
+                          {navbarTextColorName}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {CHROME_TEXT_COLOR_OPTIONS.map((option) => (
+                          <CompactColorChipButton
+                            key={`navbar-text-${option.value}`}
+                            label={option.label}
+                            value={option.value}
+                            selected={normalizedBrandSettingsDraft.navbarTextColor === option.value}
+                            onClick={() =>
+                              applyBrandingDraftChange((current) => ({
+                                ...current,
+                                navbarColorMode: "custom",
+                                navbarTextColor: option.value,
+                              }))
+                            }
+                            disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-[1.45rem] border border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(248,248,248,0.96)_100%)] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Footer Surface</p>
+                    <h4 className="mt-1 text-base font-semibold text-zinc-950">Footer background and text</h4>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        applyBrandingDraftChange((current) => ({
+                          ...current,
+                          footerColorMode: "theme",
+                        }))
+                      }
+                      className={`inline-flex h-9 items-center justify-center rounded-full border px-4 text-[11px] font-semibold tracking-[0.14em] uppercase transition-all ${
+                        normalizedBrandSettingsDraft.footerColorMode === "theme"
+                          ? "border-zinc-950 bg-zinc-950 text-white"
+                          : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 hover:text-zinc-950"
+                      }`}
+                    >
+                      Theme
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        applyBrandingDraftChange((current) => ({
+                          ...current,
+                          footerColorMode: "custom",
+                        }))
+                      }
+                      className={`inline-flex h-9 items-center justify-center rounded-full border px-4 text-[11px] font-semibold tracking-[0.14em] uppercase transition-all ${
+                        normalizedBrandSettingsDraft.footerColorMode === "custom"
+                          ? "border-zinc-950 bg-zinc-950 text-white"
+                          : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 hover:text-zinc-950"
+                      }`}
+                    >
+                      Custom
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  className="mt-4 rounded-[1.2rem] border p-4"
+                  style={{
+                    background: brandingPreviewVars["--footer-bg"],
+                    borderColor: brandingPreviewVars["--footer-border"],
+                    color: brandingPreviewVars["--footer-muted"],
+                  }}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3 text-[10px] tracking-[0.14em] uppercase">
+                    <span style={{ color: brandingPreviewVars["--footer-link"] }}>Instagram</span>
+                    <span>Privacy</span>
+                    <span>© {new Date().getFullYear()} {brandingSampleName}</span>
+                  </div>
+                </div>
+
+                <div className={`mt-4 space-y-4 ${normalizedBrandSettingsDraft.footerColorMode === "theme" ? "opacity-55" : ""}`}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Background Color</p>
+                    </div>
+                    <label className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-2 text-[11px] tracking-[0.14em] text-zinc-600 uppercase">
+                      Custom
+                      <input
+                        type="color"
+                        value={normalizedBrandSettingsDraft.footerBackgroundColor}
+                        onChange={(event) =>
+                          applyBrandingDraftChange((current) => ({
+                            ...current,
+                            footerColorMode: "custom",
+                            footerBackgroundColor: sanitizeBrandColor(event.target.value),
+                          }))
+                        }
+                        className="h-8 w-8 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                        disabled={normalizedBrandSettingsDraft.footerColorMode === "theme"}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {CHROME_BACKGROUND_COLOR_OPTIONS.map((option) => (
+                      <ColorSwatchButton
+                        key={`footer-bg-${option.value}`}
+                        label={option.label}
+                        value={option.value}
+                        selected={normalizedBrandSettingsDraft.footerBackgroundColor === option.value}
+                        onClick={() =>
+                          applyBrandingDraftChange((current) => ({
+                            ...current,
+                            footerColorMode: "custom",
+                            footerBackgroundColor: option.value,
+                          }))
+                        }
+                        disabled={normalizedBrandSettingsDraft.footerColorMode === "theme"}
+                      />
+                    ))}
+                  </div>
+
+                  <label className="block text-sm text-zinc-700">
+                    Opacity
+                    <div className="mt-2 flex items-center gap-3">
+                      <input
+                        type="range"
+                        min="25"
+                        max="100"
+                        step="1"
+                        value={normalizedBrandSettingsDraft.footerOpacity}
+                        onChange={(event) =>
+                          applyBrandingDraftChange((current) => ({
+                            ...current,
+                            footerColorMode: "custom",
+                            footerOpacity: Number(event.target.value),
+                          }))
+                        }
+                        className="h-2 flex-1 accent-zinc-900"
+                        disabled={normalizedBrandSettingsDraft.footerColorMode === "theme"}
+                      />
+                      <span className="min-w-[3rem] rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-center text-xs font-semibold text-zinc-800">
+                        {normalizedBrandSettingsDraft.footerOpacity}%
+                      </span>
+                    </div>
+                  </label>
+
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Footer Text Color</p>
+                    </div>
+                    <label className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-2 text-[11px] tracking-[0.14em] text-zinc-600 uppercase">
+                      Custom
+                      <input
+                        type="color"
+                        value={normalizedBrandSettingsDraft.footerTextColor}
+                        onChange={(event) =>
+                          applyBrandingDraftChange((current) => ({
+                            ...current,
+                            footerColorMode: "custom",
+                            footerTextColor: sanitizeBrandColor(event.target.value),
+                          }))
+                        }
+                        className="h-8 w-8 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                        disabled={normalizedBrandSettingsDraft.footerColorMode === "theme"}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {CHROME_TEXT_COLOR_OPTIONS.map((option) => (
+                      <ColorSwatchButton
+                        key={`footer-text-${option.value}`}
+                        label={option.label}
+                        value={option.value}
+                        selected={normalizedBrandSettingsDraft.footerTextColor === option.value}
+                        onClick={() =>
+                          applyBrandingDraftChange((current) => ({
+                            ...current,
+                            footerColorMode: "custom",
+                            footerTextColor: option.value,
+                          }))
+                        }
+                        disabled={normalizedBrandSettingsDraft.footerColorMode === "theme"}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <div className="relative mt-5 overflow-hidden rounded-[1.55rem] border border-zinc-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.99)_0%,rgba(246,244,240,0.98)_100%)] p-3 shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
+              <div className="pointer-events-none absolute inset-x-6 top-0 h-1 rounded-b-full bg-[linear-gradient(90deg,#111111_0%,#d8b267_42%,#8b5cf6_100%)] opacity-75" />
+              <details className="group/reading">
+                <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-4 rounded-[1.2rem] border border-zinc-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(252,251,248,0.96)_100%)] px-4 py-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] outline-none transition-all hover:border-zinc-300 hover:shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
+                  <div className="flex min-w-0 flex-1 items-start gap-4">
+                    <span className="mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-200/80 bg-[radial-gradient(circle_at_top,rgba(255,248,230,1)_0%,rgba(245,230,194,0.92)_48%,rgba(236,214,164,0.85)_100%)] text-[#6b4b16] shadow-[0_12px_24px_rgba(216,178,103,0.22)]">
+                      <TypographyIcon />
+                    </span>
+
+                    <div className="min-w-0">
+                      <p className="text-[12px] font-semibold tracking-[0.08em] text-zinc-700 uppercase">
+                        Reading & Text
+                      </p>
+                      <h4 className="mt-2 text-[1.32rem] font-semibold tracking-[-0.025em] text-zinc-950 sm:text-[1.45rem]">
+                        Global type size and text color
+                      </h4>
+                      <p className="mt-2 max-w-2xl text-[14px] leading-6 text-zinc-700">
+                        Keep the theme’s copy colors, or open this area to fine-tune readability so poems, captions, and body copy feel clearer everywhere on the site.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-end gap-2 self-center">
+                    <span className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-[11px] font-semibold tracking-[0.1em] text-zinc-800 uppercase shadow-[0_8px_18px_rgba(15,23,42,0.05)] transition-colors group-hover/reading:border-zinc-400 group-hover/reading:bg-zinc-50">
+                      Size: {selectedTextScaleOption.label}
+                    </span>
+                    <span className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-[11px] font-semibold tracking-[0.1em] text-zinc-800 uppercase shadow-[0_8px_18px_rgba(15,23,42,0.05)] transition-colors group-hover/reading:border-zinc-400 group-hover/reading:bg-zinc-50">
+                      {normalizedBrandSettingsDraft.textColorMode === "custom" ? "Custom text" : "Theme text"}
+                    </span>
+                    <span className="flex h-11 w-11 items-center justify-center rounded-full border border-zinc-300 bg-zinc-950 text-white shadow-[0_10px_24px_rgba(17,17,17,0.14)] transition-transform group-hover/reading:scale-[1.03] group-open/reading:rotate-180">
+                      <span className="h-4 w-4">
+                        <CaretDownIcon />
+                      </span>
+                    </span>
+                  </div>
+                </summary>
+
+                <div className="mt-3 grid gap-5 border-t border-zinc-200/90 px-3 pb-3 pt-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(280px,0.95fr)]">
+                  <section className="rounded-[1.2rem] border border-zinc-200 bg-white p-4 shadow-[0_10px_22px_rgba(0,0,0,0.04)]">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Type Scale</p>
+                        <h5 className="mt-1 text-sm font-semibold text-zinc-950">
+                          Let the whole site breathe a little more
+                        </h5>
+                      </div>
+                      <span className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-[10px] tracking-[0.14em] text-zinc-600 uppercase">
+                        Auto-saves
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 md:grid-cols-3">
+                      {TEXT_SCALE_OPTIONS.map((option) => {
+                        const isSelected = normalizedBrandSettingsDraft.textScaleKey === option.key;
+
+                        return (
+                          <button
+                            key={option.key}
+                            type="button"
+                            onClick={() =>
+                              applyBrandingDraftChange((current) => ({
+                                ...current,
+                                textScaleKey: option.key,
+                              }))
+                            }
+                            className={`rounded-[1.1rem] border p-3 text-left transition-all ${
+                              isSelected
+                                ? "border-zinc-950 bg-zinc-950 text-white shadow-[0_16px_28px_rgba(17,17,17,0.18)]"
+                                : "border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(249,249,249,0.98)_100%)] text-zinc-950 hover:border-zinc-400 hover:shadow-[0_12px_24px_rgba(0,0,0,0.07)]"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-[12px] font-semibold tracking-[0.04em]">{option.label}</span>
+                              <span
+                                className={`rounded-full border px-2 py-1 text-[10px] tracking-[0.12em] uppercase ${
+                                  isSelected
+                                    ? "border-white/20 bg-white/10 text-white"
+                                    : "border-zinc-200 bg-white text-zinc-600"
+                                }`}
+                              >
+                                {option.rootFontSize}
+                              </span>
+                            </div>
+                            <p className={`mt-2 text-sm leading-relaxed ${isSelected ? "text-white/76" : "text-zinc-600"}`}>
+                              {option.note}
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <p className="mt-4 text-xs text-zinc-500">
+                      These presets stay restrained on purpose so larger copy still fits the grid, cards, and lightbox rhythm.
+                    </p>
+                  </section>
+
+                  <section className="rounded-[1.2rem] border border-zinc-200 bg-white p-4 shadow-[0_10px_22px_rgba(0,0,0,0.04)]">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Text Color</p>
+                        <h5 className="mt-1 text-sm font-semibold text-zinc-950">
+                          Theme-led by default, custom when you need it
+                        </h5>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            applyBrandingDraftChange((current) => ({
+                              ...current,
+                              textColorMode: "theme",
+                            }))
+                          }
+                          className={`inline-flex h-9 items-center justify-center rounded-full border px-4 text-[11px] font-semibold tracking-[0.14em] uppercase transition-all ${
+                            normalizedBrandSettingsDraft.textColorMode === "theme"
+                              ? "border-zinc-950 bg-zinc-950 text-white"
+                              : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 hover:text-zinc-950"
+                          }`}
+                        >
+                          Theme
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            applyBrandingDraftChange((current) => ({
+                              ...current,
+                              textColorMode: "custom",
+                            }))
+                          }
+                          className={`inline-flex h-9 items-center justify-center rounded-full border px-4 text-[11px] font-semibold tracking-[0.14em] uppercase transition-all ${
+                            normalizedBrandSettingsDraft.textColorMode === "custom"
+                              ? "border-zinc-950 bg-zinc-950 text-white"
+                              : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 hover:text-zinc-950"
+                          }`}
+                        >
+                          Custom
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="mt-3 text-xs text-zinc-500">
+                      Theme mode keeps the palette perfectly matched. Switch to custom if you want slightly darker or more stylized body copy across the site.
+                    </p>
+
+                    <div className={`mt-4 space-y-4 ${normalizedBrandSettingsDraft.textColorMode === "theme" ? "opacity-55" : ""}`}>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Global Text Color</p>
+                        </div>
+                        <label className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-2 text-[11px] tracking-[0.14em] text-zinc-600 uppercase">
+                          Custom
+                          <input
+                            type="color"
+                            value={normalizedBrandSettingsDraft.globalTextColor}
+                            onChange={(event) =>
+                              applyBrandingDraftChange((current) => ({
+                                ...current,
+                                textColorMode: "custom",
+                                globalTextColor: sanitizeBrandColor(event.target.value),
+                              }))
+                            }
+                            className="h-8 w-8 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                            disabled={normalizedBrandSettingsDraft.textColorMode === "theme"}
+                          />
+                        </label>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        {GLOBAL_TEXT_COLOR_OPTIONS.map((option) => (
+                          <ColorSwatchButton
+                            key={`global-text-${option.value}`}
+                            label={option.label}
+                            value={option.value}
+                            selected={normalizedBrandSettingsDraft.globalTextColor === option.value}
+                            onClick={() =>
+                              applyBrandingDraftChange((current) => ({
+                                ...current,
+                                textColorMode: "custom",
+                                globalTextColor: option.value,
+                              }))
+                            }
+                            disabled={normalizedBrandSettingsDraft.textColorMode === "theme"}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    <div
+                      className="mt-4 rounded-[1.15rem] border p-4"
+                      style={{
+                        ...brandingPreviewVars,
+                        background: "var(--surface)",
+                        borderColor: "var(--line)",
+                        color: "var(--ink)",
+                        fontSize: "var(--root-font-size)",
+                        boxShadow: "var(--shadow-soft)",
+                      }}
+                    >
+                      <p className="text-[10px] tracking-[0.14em] uppercase" style={{ color: "var(--muted)" }}>
+                        Preview
+                      </p>
+                      <h6 className="mt-2 text-[1.1em] font-semibold leading-tight" style={{ color: "var(--ink)" }}>
+                        Stronger reading without breaking the mood
+                      </h6>
+                      <p className="mt-2 max-w-lg leading-relaxed" style={{ color: "var(--muted)" }}>
+                        Body copy, captions, poems, and supporting text all respond to this setting immediately so you can find a size and tone that still feels editorial.
+                      </p>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span
+                          className="inline-flex rounded-full border px-3 py-1.5 text-[0.72em] font-semibold tracking-[0.14em] uppercase"
+                          style={{
+                            borderColor: "var(--button-primary-border)",
+                            background: "var(--button-primary-bg)",
+                            color: "var(--button-primary-text)",
+                          }}
+                        >
+                          Button
+                        </span>
+                        <span className="text-[0.75em] font-medium tracking-[0.08em] uppercase" style={{ color: "var(--link)" }}>
+                          Sample link
+                        </span>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              </details>
+            </div>
+          </section>
+        </section>
+      ) : isUploadTab ? (
+        <section className="mt-5 rounded-[1.6rem] border border-zinc-300/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.99)_0%,rgba(248,245,239,0.98)_100%)] p-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] sm:p-5">
           <header className="border-b border-line pb-4">
-            <h2 className="text-2xl font-semibold text-foreground">Multi-photo upload</h2>
-            <p className="mt-2 text-sm text-foreground/80">
-              Streamlined uploader for repeated batches. Configure defaults once and apply across all selected files.
+            <p className="text-[11px] font-semibold tracking-[0.1em] text-zinc-700 uppercase">Upload Workspace</p>
+            <h2 className="mt-1 text-[1.4rem] font-semibold tracking-[-0.02em] text-foreground">Multi-photo upload</h2>
+            <p className="mt-1.5 text-sm text-foreground/80">
+              Build a batch once, then push it through with tighter, faster controls.
             </p>
           </header>
 
           <form onSubmit={handleUploadSubmit} className="mt-5 space-y-4">
-            <section className="rounded-xl border border-line bg-white p-4">
+            <section className="rounded-[1.2rem] border border-zinc-300/70 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(249,248,245,0.98)_100%)] p-4 shadow-[0_12px_26px_rgba(15,23,42,0.05)]">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-semibold text-foreground">1. Choose photos</h3>
@@ -3186,7 +5184,7 @@ export default function AdminDashboard() {
               ) : null}
             </section>
 
-            <section className="rounded-xl border border-line bg-white p-4">
+            <section className="rounded-[1.2rem] border border-zinc-300/70 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(249,248,245,0.98)_100%)] p-4 shadow-[0_12px_26px_rgba(15,23,42,0.05)]">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-semibold text-foreground">2. Default metadata</h3>
@@ -3243,7 +5241,7 @@ export default function AdminDashboard() {
               </div>
             </section>
 
-            <section className="rounded-xl border border-line bg-white p-4">
+            <section className="rounded-[1.2rem] border border-zinc-300/70 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(249,248,245,0.98)_100%)] p-4 shadow-[0_12px_26px_rgba(15,23,42,0.05)]">
               <h3 className="text-lg font-semibold text-foreground">3. Publishing settings</h3>
               <p className="mt-1 text-sm text-muted">Control public visibility and whether uploads should appear on the homepage curation list.</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -3275,7 +5273,7 @@ export default function AdminDashboard() {
               </p>
             </section>
 
-            <section className="rounded-xl border border-line bg-white p-4">
+            <section className="rounded-[1.2rem] border border-zinc-300/70 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(249,248,245,0.98)_100%)] p-4 shadow-[0_12px_26px_rgba(15,23,42,0.05)]">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-semibold text-foreground">4. Optional writing</h3>
@@ -3380,7 +5378,7 @@ export default function AdminDashboard() {
               </div>
             </section>
 
-            <section className="rounded-xl border border-foreground/20 bg-[linear-gradient(180deg,rgba(248,248,248,0.8)_0%,rgba(255,255,255,1)_100%)] p-4">
+            <section className="rounded-[1.2rem] border border-zinc-900/20 bg-[linear-gradient(180deg,rgba(248,248,248,0.84)_0%,rgba(255,255,255,1)_100%)] p-4 shadow-[0_12px_26px_rgba(15,23,42,0.05)]">
               <h3 className="text-lg font-semibold text-foreground">5. Upload</h3>
               <p className="mt-1 text-sm text-muted">
                 Ready to upload {files.length} photo{files.length === 1 ? "" : "s"} with your current defaults.
@@ -3423,14 +5421,15 @@ export default function AdminDashboard() {
           ) : null}
         </section>
       ) : (
-        <section className="mt-6 space-y-5">
+        <section className="mt-5 space-y-4">
           {isHomepageTab ? (
             <>
-              <div className="rounded-2xl border border-line bg-[linear-gradient(180deg,rgba(255,255,255,0.95)_0%,rgba(248,245,240,0.9)_100%)] p-4 shadow-[0_16px_48px_rgba(0,0,0,0.08)]">
+              <div className="rounded-[1.6rem] border border-zinc-300/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(246,242,235,0.96)_100%)] p-4 shadow-[0_18px_42px_rgba(15,23,42,0.08)]">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-sm tracking-[0.14em] uppercase">Homepage Editor</h2>
-                    <p className="mt-2 max-w-2xl text-sm text-muted">
+                    <p className="text-[11px] font-semibold tracking-[0.1em] text-zinc-700 uppercase">Homepage</p>
+                    <h2 className="mt-1 text-[1.35rem] font-semibold tracking-[-0.02em] text-zinc-950">Homepage Editor</h2>
+                    <p className="mt-1.5 max-w-2xl text-sm text-muted">
                       Curate the first page visitors see. Choose up to {HOMEPAGE_MAX_PHOTOS} published photos and set the sequence.
                       The first photo becomes the Main Photo.
                     </p>
@@ -3479,8 +5478,8 @@ export default function AdminDashboard() {
               </div>
 
               <div className="space-y-4">
-                <section className="h-fit rounded-2xl border border-line bg-white p-3 shadow-[0_12px_30px_rgba(0,0,0,0.05)] sm:p-4">
-                  <h3 className="text-[11px] tracking-[0.14em] uppercase">Homepage Sequence</h3>
+                <section className="h-fit rounded-[1.35rem] border border-zinc-300/70 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(249,248,245,0.98)_100%)] p-3.5 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:p-4">
+                  <h3 className="text-[11px] font-semibold tracking-[0.1em] text-zinc-700 uppercase">Homepage Sequence</h3>
                   <p className="mt-2 text-sm text-muted">
                     Drag to reorder on desktop, or use the move buttons on touch devices and compact screens.
                   </p>
@@ -3644,10 +5643,10 @@ export default function AdminDashboard() {
                 </section>
               </div>
 
-              <section className="rounded-2xl border border-line bg-white p-3 shadow-[0_12px_30px_rgba(0,0,0,0.05)] sm:p-4">
+              <section className="rounded-[1.35rem] border border-zinc-300/70 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(249,248,245,0.98)_100%)] p-3.5 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-[11px] tracking-[0.14em] uppercase">Published Library Picker</h3>
+                    <h3 className="text-[11px] font-semibold tracking-[0.1em] text-zinc-700 uppercase">Published Library Picker</h3>
                     <p className="mt-2 text-sm text-muted">
                       Add published photos to homepage on touch devices, or drag a card into Homepage Sequence on desktop.
                     </p>
@@ -3700,7 +5699,7 @@ export default function AdminDashboard() {
             </>
           ) : (
           <>
-          <div className="rounded-2xl border border-line bg-[linear-gradient(180deg,rgba(255,255,255,0.99)_0%,rgba(252,249,244,0.96)_100%)] p-4 shadow-[0_12px_30px_rgba(0,0,0,0.08)] sm:p-5">
+          <div className="rounded-[1.6rem] border border-zinc-300/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.99)_0%,rgba(248,245,239,0.98)_100%)] p-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="text-[1.6rem] font-semibold tracking-[-0.02em] text-zinc-950 sm:text-[1.75rem]">
@@ -3740,7 +5739,7 @@ export default function AdminDashboard() {
                         <button
                           type="button"
                           onClick={() => setShowLibraryToolsMenu(false)}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200 bg-[linear-gradient(180deg,rgba(252,250,247,1)_0%,rgba(245,242,237,0.96)_100%)] text-zinc-600 shadow-[0_6px_16px_rgba(0,0,0,0.05)] transition-colors hover:border-zinc-300 hover:bg-zinc-100 hover:text-zinc-900"
                           aria-label="Close album manager"
                         >
                           <span className="h-4 w-4">
@@ -4013,8 +6012,8 @@ export default function AdminDashboard() {
             </p>
           ) : null}
 
-          <div className="space-y-5">
-            <section className="rounded-2xl border border-line bg-white p-4">
+          <div className="space-y-4">
+            <section className="rounded-[1.35rem] border border-zinc-300/70 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(249,248,245,0.98)_100%)] p-4 shadow-[0_14px_28px_rgba(15,23,42,0.05)]">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3">
                 <label className="inline-flex items-center gap-2 text-sm">
                   <input

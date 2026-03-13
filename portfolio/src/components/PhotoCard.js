@@ -115,7 +115,7 @@ export default function PhotoCard({
       <button
         type="button"
         onClick={safeOnOpen}
-        className="group relative block h-full w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+        className="group relative block h-full w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--ink)]"
         aria-label={`Open ${altText}`}
       >
         <Image
@@ -129,7 +129,12 @@ export default function PhotoCard({
           blurDataURL={BLUR_DATA_URL}
         />
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/72 via-black/24 to-transparent opacity-100 transition-opacity duration-500 sm:opacity-0 sm:group-hover:opacity-100" />
+        <div
+          className="absolute inset-0 opacity-100 transition-opacity duration-500 sm:opacity-0 sm:group-hover:opacity-100"
+          style={{
+            background: `linear-gradient(to top, var(--photo-overlay-start), var(--photo-overlay-mid), transparent)`,
+          }}
+        />
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-0 p-4 text-left text-white opacity-100 transition-all duration-500 sm:translate-y-4 sm:p-6 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100">
           <p className="display-font max-w-[92%] text-xl leading-none break-words sm:text-2xl">

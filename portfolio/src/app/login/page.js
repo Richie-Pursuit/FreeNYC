@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
-import Navbar from "@/components/Navbar";
 
 export const metadata = {
   title: "Login",
@@ -23,8 +22,6 @@ export default async function LoginPage({ searchParams }) {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
-
       <main
         id="main-content"
         className="motion-page-enter mx-auto flex w-full max-w-3xl flex-col items-center px-4 py-24 text-center sm:px-8"
@@ -41,7 +38,7 @@ export default async function LoginPage({ searchParams }) {
 
         <Link
           href="/"
-          className="mt-8 text-[11px] tracking-[0.16em] text-muted uppercase transition-colors hover:text-foreground"
+          className="theme-link mt-8 text-[11px] tracking-[0.16em] uppercase transition-colors"
         >
           Back To Gallery
         </Link>

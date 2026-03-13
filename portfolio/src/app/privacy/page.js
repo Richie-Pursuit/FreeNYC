@@ -1,5 +1,3 @@
-import Navbar from "@/components/Navbar";
-
 export const metadata = {
   title: "Privacy Policy",
 };
@@ -9,7 +7,6 @@ const updatedAt = "March 4, 2026";
 export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
       <main id="main-content" className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-8 sm:py-14">
         <p className="text-[11px] tracking-[0.18em] text-muted uppercase">Privacy Policy</p>
         <h1 className="display-font mt-3 text-4xl leading-none sm:text-5xl">
@@ -77,7 +74,7 @@ export default function PrivacyPage() {
             <p className="mt-2">
               You can request access, correction, or deletion of your contact submission by
               emailing{" "}
-              <a className="underline decoration-foreground/40" href="mailto:richiecarrasco@pursuit.org">
+              <a className="theme-link underline" href="mailto:richiecarrasco@pursuit.org">
                 richiecarrasco@pursuit.org
               </a>
               .

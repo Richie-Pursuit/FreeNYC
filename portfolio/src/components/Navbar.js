@@ -3,7 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import BrandStarSymbol from "@/components/BrandStarSymbol";
+import BrandLogoMark from "@/components/BrandLogoMark";
+import {
+  getNavbarBrandTextClass,
+  getNavbarBrandTextStyle,
+} from "@/lib/siteBrand";
+import { getDefaultSiteSettingsValues, normalizeSiteSettings } from "@/lib/siteSettings";
 
 const navLinks = [
   { label: "Gallery", href: "/gallery" },
@@ -68,9 +73,16 @@ function MenuIcon({ open = false }) {
   );
 }
 
-export default function Navbar() {
+export default function Navbar({ initialSettings = null }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [brandSettings, setBrandSettings] = useState(() =>
+    normalizeSiteSettings(initialSettings || getDefaultSiteSettingsValues()),
+  );
+
+  useEffect(() => {
+    setBrandSettings(normalizeSiteSettings(initialSettings || getDefaultSiteSettingsValues()));
+  }, [initialSettings]);
 
   const [adminPassword, setAdminPassword] = useState("");
   const [showAdminPassword, setShowAdminPassword] = useState(false);
@@ -85,6 +97,42 @@ export default function Navbar() {
     setShowAdminPassword(false);
     setAdminError("");
   }, [pathname]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadSiteBranding = async () => {
+      try {
+        const response = await fetch("/api/site-settings", { cache: "no-store" });
+        const data = await response.json().catch(() => ({}));
+
+        if (isActive) {
+          setBrandSettings(normalizeSiteSettings(data?.settings || {}));
+        }
+      } catch {
+        if (isActive) {
+          setBrandSettings(getDefaultSiteSettingsValues());
+        }
+      }
+    };
+
+    const handleSiteSettingsUpdated = (event) => {
+      setBrandSettings(normalizeSiteSettings(event?.detail || {}));
+    };
+
+    loadSiteBranding();
+    window.addEventListener("site-settings-updated", handleSiteSettingsUpdated);
+    window.addEventListener("site-brand-updated", handleSiteSettingsUpdated);
+
+    return () => {
+      isActive = false;
+      window.removeEventListener("site-settings-updated", handleSiteSettingsUpdated);
+      window.removeEventListener("site-brand-updated", handleSiteSettingsUpdated);
+    };
+  }, []);
+
+  const brandTextClass = getNavbarBrandTextClass(brandSettings.brandName);
+  const brandTextStyle = getNavbarBrandTextStyle(brandSettings);
 
   const isActive = (href) => {
     if (href === "/") {
@@ -124,7 +172,7 @@ export default function Navbar() {
 
   const gatePanel = (
     <div
-      className={`absolute right-0 top-[calc(100%+0.55rem)] z-50 w-[min(260px,calc(100vw-1.5rem))] rounded-xl border border-foreground/15 bg-white/95 p-3 shadow-[0_12px_28px_rgba(0,0,0,0.12)] transition-all ${
+      className={`theme-surface absolute right-0 top-[calc(100%+0.55rem)] z-50 w-[min(260px,calc(100vw-1.5rem))] rounded-xl border p-3 transition-all ${
         adminGateOpen
           ? "pointer-events-auto translate-y-0 opacity-100"
           : "pointer-events-none translate-y-1 opacity-0"
@@ -139,7 +187,7 @@ export default function Navbar() {
           value={adminPassword}
           onChange={(event) => setAdminPassword(event.target.value)}
           placeholder="Enter password"
-          className="w-full border border-foreground/25 bg-white px-3 py-2 text-sm text-foreground placeholder:text-foreground/45 outline-none focus:border-foreground focus:ring-2 focus:ring-foreground/15"
+          className="theme-field w-full border px-3 py-2 text-sm outline-none"
         />
         <label className="flex items-center gap-2 text-[10px] tracking-[0.12em] text-foreground/70 uppercase">
           <input
@@ -152,7 +200,7 @@ export default function Navbar() {
         </label>
         <button
           type="submit"
-          className="w-full border border-foreground bg-foreground px-3 py-2 text-[10px] tracking-[0.14em] text-background uppercase transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="theme-primary-button w-full border px-3 py-2 text-[10px] tracking-[0.14em] uppercase transition-opacity hover:opacity-90 disabled:opacity-50"
           disabled={isUnlocking}
         >
           {isUnlocking ? "Checking..." : "Unlock"}
@@ -166,21 +214,23 @@ export default function Navbar() {
   );
 
   return (
-    <header className="sticky top-0 z-40 border-b border-zinc-300/75 bg-[linear-gradient(180deg,rgba(249,249,247,0.98)_0%,rgba(249,249,247,0.93)_100%)] px-3 pt-[calc(env(safe-area-inset-top)+0.9rem)] pb-3 backdrop-blur-md shadow-[0_1px_0_rgba(0,0,0,0.04)] sm:px-6 sm:pt-[calc(env(safe-area-inset-top)+1rem)] sm:pb-3 lg:px-12 lg:pt-[calc(env(safe-area-inset-top)+1.15rem)] lg:pb-4">
+    <header className="theme-header-shell sticky top-0 z-40 border-b px-3 pt-[calc(env(safe-area-inset-top)+0.9rem)] pb-3 backdrop-blur-md sm:px-6 sm:pt-[calc(env(safe-area-inset-top)+1rem)] sm:pb-3 lg:px-12 lg:pt-[calc(env(safe-area-inset-top)+1.15rem)] lg:pb-4">
       <div className="mx-auto w-full max-w-[1800px]">
         <div className="flex items-center justify-between gap-3">
           <Link
             href="/"
             className="group relative inline-flex items-center gap-2 rounded-md px-1 py-0.5 sm:gap-2.5"
+            aria-label={brandSettings.brandName}
           >
-            <BrandStarSymbol
-              className="h-8 w-8 shrink-0 sm:h-9 sm:w-9"
-              fill="#F5F5F0"
-              split="#0A0A0A"
-              stroke="#111111"
+            <BrandLogoMark
+              settings={brandSettings}
+              className="h-8 w-10 sm:h-9 sm:w-11"
             />
-            <span className="logo-font relative z-10 text-[1.86rem] leading-none text-zinc-950 uppercase transition-transform duration-300 group-hover:scale-[1.015] sm:text-[2.5rem]">
-              Free NYC
+            <span
+              className={`logo-font relative z-10 block whitespace-normal text-balance text-zinc-950 transition-transform duration-300 group-hover:scale-[1.015] ${brandTextClass}`}
+              style={brandTextStyle}
+            >
+              {brandSettings.brandName}
             </span>
           </Link>
 
@@ -193,8 +243,8 @@ export default function Navbar() {
                   aria-current={isActive(link.href) ? "page" : undefined}
                   className={`border-b-2 px-0 py-1.5 text-[16px] font-semibold tracking-[0.08em] uppercase transition-all ${
                     isActive(link.href)
-                      ? "border-zinc-900 text-zinc-900"
-                      : "border-transparent text-zinc-700/88 hover:border-zinc-500/45 hover:text-zinc-900"
+                      ? "border-[color:var(--header-ink)] text-[color:var(--header-ink)]"
+                      : "border-transparent text-[color:var(--header-muted)] hover:border-[color:var(--accent)] hover:text-[color:var(--header-ink)]"
                   }`}
                 >
                   {link.label}
@@ -210,7 +260,7 @@ export default function Navbar() {
                   setShowAdminPassword(false);
                   setAdminError("");
                 }}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-300 bg-white text-zinc-800 shadow-[0_6px_18px_rgba(0,0,0,0.06)] transition-colors hover:border-zinc-900/40 hover:text-zinc-900"
+                className="theme-secondary-button inline-flex h-11 w-11 items-center justify-center rounded-full border transition-colors"
                 aria-label="Admin access"
                 aria-expanded={adminGateOpen}
               >
@@ -222,7 +272,7 @@ export default function Navbar() {
             <button
               type="button"
               onClick={() => setMobileNavOpen((open) => !open)}
-              className="flex h-11 w-11 items-center justify-center rounded-md border border-zinc-300 bg-white text-zinc-800 shadow-[0_6px_18px_rgba(0,0,0,0.06)] transition-colors hover:border-zinc-900/45 hover:text-zinc-900 md:hidden"
+              className="theme-secondary-button flex h-11 w-11 items-center justify-center rounded-md border transition-colors md:hidden"
               aria-label="Toggle menu"
               aria-expanded={mobileNavOpen}
             >
@@ -232,7 +282,7 @@ export default function Navbar() {
         </div>
 
         {mobileNavOpen ? (
-          <div className="mt-3 grid gap-2 border-t border-zinc-300/65 pt-3 md:hidden">
+          <div className="mt-3 grid gap-2 border-t border-line pt-3 md:hidden">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
@@ -240,8 +290,8 @@ export default function Navbar() {
                 aria-current={isActive(link.href) ? "page" : undefined}
                 className={`border-b px-2 py-3 text-[15px] font-semibold tracking-[0.07em] uppercase transition-colors ${
                   isActive(link.href)
-                    ? "border-zinc-900 text-zinc-900"
-                    : "border-transparent text-zinc-700/90 hover:border-zinc-500/45 hover:text-zinc-900"
+                    ? "border-[color:var(--header-ink)] text-[color:var(--header-ink)]"
+                    : "border-transparent text-[color:var(--header-muted)] hover:border-[color:var(--accent)] hover:text-[color:var(--header-ink)]"
                 }`}
               >
                 {link.label}
