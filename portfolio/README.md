@@ -2,6 +2,32 @@
 
 Next.js App Router portfolio site for Leica-style street photography.
 
+## Website Overview
+
+Free NYC is a street photography portfolio and admin-controlled gallery built to present curated images, captions, poems, and artist information in a clean editorial layout.
+
+The site includes:
+
+- a public homepage with curated featured images
+- a gallery with collection-based filtering and lightbox viewing
+- an About page with editable artist content
+- a contact form for project inquiries
+- an admin dashboard for uploads, homepage curation, branding, album management, and drafts
+
+## Tools Used
+
+This website was built with:
+
+- **Next.js 16** for the App Router architecture and full-stack React framework
+- **React 19** for the user interface
+- **MongoDB Atlas** for photos, site settings, About page content, and contact message storage
+- **NextAuth.js** with **Google sign-in** for admin authentication
+- **Custom admin gate password** for an extra layer of admin protection
+- **Cloudinary** for image hosting, uploads, and delivery
+- **Resend** for contact form email delivery
+- **Tailwind CSS 4** for styling and design system utilities
+- **Netlify** for deployment and hosting
+
 ## Contact Email Setup
 
 Contact form submissions are sent by the `/api/contact` route using the Resend API.
@@ -21,10 +47,6 @@ Notes:
 - Contact form requires explicit consent to Privacy Policy and Terms.
 - Legal pages are available at `/privacy` and `/terms`.
 
-## Default Next.js Notes
-
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
-
 ## Getting Started
 
 First, run the development server:
@@ -41,21 +63,20 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `src/app` contains the public routes, admin routes, and API routes
+- `src/components` contains the gallery UI, admin dashboard, branding controls, lightbox, and forms
+- `src/lib` contains data access, auth configuration, branding utilities, and service helpers
 
-## Learn More
+## Deployment
 
-To learn more about Next.js, take a look at the following resources:
+This project is configured for deployment on **Netlify**.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Important production services include:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- MongoDB Atlas
+- Cloudinary
+- Google OAuth credentials
+- Resend
+- Netlify environment variables
