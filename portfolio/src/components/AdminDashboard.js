@@ -712,8 +712,51 @@ function CompactColorChipButton({
   );
 }
 
+function CustomColorChipButton({
+  label = "Custom color",
+  value,
+  onChange,
+  selected = false,
+  disabled = false,
+}) {
+  return (
+    <label
+      className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full border bg-white transition-all ${
+        selected
+          ? "border-zinc-950 shadow-[0_10px_22px_rgba(17,17,17,0.14)] ring-2 ring-zinc-950/18 ring-offset-2 ring-offset-white"
+          : "border-zinc-200 hover:border-zinc-400 hover:-translate-y-0.5"
+      } ${disabled ? "cursor-not-allowed opacity-45" : "cursor-pointer"}`}
+      title={label}
+    >
+      <span
+        className="relative flex h-5 w-5 items-center justify-center rounded-full border border-black/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)]"
+        style={{ backgroundColor: value }}
+        aria-hidden="true"
+      >
+        <span className="absolute inset-0 rounded-full bg-white/32" />
+        <span className="relative h-3.5 w-3.5 text-zinc-900">
+          <PlusIcon />
+        </span>
+      </span>
+      <input
+        type="color"
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        className="absolute inset-0 h-full w-full cursor-pointer rounded-full opacity-0"
+        aria-label={label}
+      />
+      <span className="sr-only">{label}</span>
+    </label>
+  );
+}
+
 function getColorOptionLabel(options, value) {
   return options.find((option) => option.value.toLowerCase() === String(value).toLowerCase())?.label || value;
+}
+
+function hasColorOption(options, value) {
+  return options.some((option) => option.value.toLowerCase() === String(value).toLowerCase());
 }
 
 function PanelSelectInput({
@@ -877,6 +920,7 @@ export default function AdminDashboard() {
   const [isPreparingBrandLogo, setIsPreparingBrandLogo] = useState(false);
   const [canUndoBranding, setCanUndoBranding] = useState(false);
   const [showExtendedBrandFonts, setShowExtendedBrandFonts] = useState(false);
+  const [activeChromePanel, setActiveChromePanel] = useState("header");
   const [activeNavbarPaletteTarget, setActiveNavbarPaletteTarget] = useState("start");
 
   const [searchInput, setSearchInput] = useState("");
@@ -1238,6 +1282,24 @@ export default function AdminDashboard() {
     CHROME_TEXT_COLOR_OPTIONS,
     normalizedBrandSettingsDraft.navbarTextColor,
   );
+  const footerBackgroundColorName = getColorOptionLabel(
+    CHROME_BACKGROUND_COLOR_OPTIONS,
+    normalizedBrandSettingsDraft.footerBackgroundColor,
+  );
+  const footerTextColorName = getColorOptionLabel(
+    CHROME_TEXT_COLOR_OPTIONS,
+    normalizedBrandSettingsDraft.footerTextColor,
+  );
+  const navbarSurfaceUsesPresetColor = hasColorOption(CHROME_BACKGROUND_COLOR_OPTIONS, activeNavbarSurfaceValue);
+  const navbarTextUsesPresetColor = hasColorOption(
+    CHROME_TEXT_COLOR_OPTIONS,
+    normalizedBrandSettingsDraft.navbarTextColor,
+  );
+  const footerBackgroundUsesPresetColor = hasColorOption(
+    CHROME_BACKGROUND_COLOR_OPTIONS,
+    normalizedBrandSettingsDraft.footerBackgroundColor,
+  );
+  const footerTextUsesPresetColor = hasColorOption(CHROME_TEXT_COLOR_OPTIONS, normalizedBrandSettingsDraft.footerTextColor);
   const adminTypeScaleClass =
     normalizedBrandSettingsDraft.textScaleKey === "large"
       ? "text-[19px] [&_input]:text-[18px] [&_select]:text-[18px] [&_textarea]:text-[18px]"
@@ -1431,6 +1493,39 @@ export default function AdminDashboard() {
       });
     },
     [activeNavbarPaletteTarget, applyBrandingDraftChange],
+  );
+
+  const applyNavbarTextColor = useCallback(
+    (nextColor) => {
+      applyBrandingDraftChange((current) => ({
+        ...current,
+        navbarColorMode: "custom",
+        navbarTextColor: nextColor,
+      }));
+    },
+    [applyBrandingDraftChange],
+  );
+
+  const applyFooterBackgroundColor = useCallback(
+    (nextColor) => {
+      applyBrandingDraftChange((current) => ({
+        ...current,
+        footerColorMode: "custom",
+        footerBackgroundColor: nextColor,
+      }));
+    },
+    [applyBrandingDraftChange],
+  );
+
+  const applyFooterTextColor = useCallback(
+    (nextColor) => {
+      applyBrandingDraftChange((current) => ({
+        ...current,
+        footerColorMode: "custom",
+        footerTextColor: nextColor,
+      }));
+    },
+    [applyBrandingDraftChange],
   );
 
   const triggerBrandLogoPicker = useCallback(() => {
@@ -4396,9 +4491,9 @@ export default function AdminDashboard() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold tracking-[0.1em] text-zinc-700 uppercase">Navbar + Footer</p>
-                <h3 className="mt-1 text-[1.35rem] font-semibold tracking-[-0.02em] text-zinc-950">Adjust the chrome</h3>
+                <h3 className="mt-1 text-[1.35rem] font-semibold tracking-[-0.02em] text-zinc-950">Header & Footer Appearance</h3>
                 <p className="mt-1.5 max-w-2xl text-sm text-zinc-700">
-                  Stay on theme or switch either surface to custom colors, opacity, and text.
+                  Edit one surface at a time so the preview and controls stay easy to scan.
                 </p>
               </div>
               <span className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-[10px] tracking-[0.14em] text-zinc-600 uppercase">
@@ -4406,12 +4501,37 @@ export default function AdminDashboard() {
               </span>
             </div>
 
-            <div className="mt-5 grid gap-5 xl:grid-cols-2">
-              <section className="rounded-[1.45rem] border border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(248,248,248,0.96)_100%)] p-4">
+            <div className="mt-5 inline-flex flex-wrap gap-2 rounded-full border border-zinc-200 bg-white p-1.5 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+              <button
+                type="button"
+                onClick={() => setActiveChromePanel("header")}
+                className={`inline-flex h-10 items-center justify-center rounded-full px-5 text-[11px] font-semibold tracking-[0.14em] uppercase transition-all ${
+                  activeChromePanel === "header"
+                    ? "bg-zinc-950 text-white shadow-[0_12px_24px_rgba(17,17,17,0.16)]"
+                    : "text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950"
+                }`}
+              >
+                Header
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveChromePanel("footer")}
+                className={`inline-flex h-10 items-center justify-center rounded-full px-5 text-[11px] font-semibold tracking-[0.14em] uppercase transition-all ${
+                  activeChromePanel === "footer"
+                    ? "bg-zinc-950 text-white shadow-[0_12px_24px_rgba(17,17,17,0.16)]"
+                    : "text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950"
+                }`}
+              >
+                Footer
+              </button>
+            </div>
+
+            {activeChromePanel === "header" ? (
+              <section className="mt-5 rounded-[1.45rem] border border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(248,248,248,0.96)_100%)] p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Navbar Surface</p>
-                    <h4 className="mt-1 text-base font-semibold text-zinc-950">Header background and nav text</h4>
+                    <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Header</p>
+                    <h4 className="mt-1 text-base font-semibold text-zinc-950">Background and nav text</h4>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -4459,7 +4579,7 @@ export default function AdminDashboard() {
                     }}
                   >
                     <p className="text-[10px] font-semibold tracking-[0.14em] uppercase" style={{ color: brandingPreviewVars["--header-ink"] }}>
-                      Navbar Preview
+                      Live Header Preview
                     </p>
                     <div className="mt-2 flex items-center justify-between gap-3 text-[10px] tracking-[0.14em] uppercase">
                       <span style={{ color: brandingPreviewVars["--header-ink"] }}>Gallery</span>
@@ -4469,123 +4589,103 @@ export default function AdminDashboard() {
                   </div>
 
                   <p className="text-xs text-zinc-600">
-                    Wordmark color stays separate in the logo section above. This panel only changes the navbar surface and navigation text.
+                    Wordmark color stays separate in the logo area above. This panel only changes the header surface and nav text.
                   </p>
 
                   <div className={`space-y-3.5 ${normalizedBrandSettingsDraft.navbarColorMode === "theme" ? "opacity-55" : ""}`}>
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Surface Style</p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            applyBrandingDraftChange((current) => ({
-                              ...current,
-                              navbarColorMode: "custom",
-                              navbarFillStyle: "solid",
-                            }))
-                          }
-                          className={`inline-flex h-9 items-center justify-center rounded-full border px-4 text-[11px] font-semibold tracking-[0.14em] uppercase transition-all ${
-                            normalizedBrandSettingsDraft.navbarFillStyle === "solid"
-                              ? "border-zinc-950 bg-zinc-950 text-white"
-                              : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 hover:text-zinc-950"
-                          }`}
-                          disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
-                        >
-                          Solid
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveNavbarPaletteTarget("start");
-                            applyBrandingDraftChange((current) => ({
-                              ...current,
-                              navbarColorMode: "custom",
-                              navbarFillStyle: "gradient",
-                            }));
-                          }}
-                          className={`inline-flex h-9 items-center justify-center rounded-full border px-4 text-[11px] font-semibold tracking-[0.14em] uppercase transition-all ${
-                            normalizedBrandSettingsDraft.navbarFillStyle === "gradient"
-                              ? "border-zinc-950 bg-zinc-950 text-white"
-                              : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 hover:text-zinc-950"
-                          }`}
-                          disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
-                        >
-                          Gradient
-                        </button>
-                      </div>
-                    </div>
-
                     <div className="rounded-[1.15rem] border border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,248,248,0.96)_100%)] p-3.5">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Color Controls</p>
-                          <p className="mt-1 text-sm text-zinc-700">
-                            {normalizedBrandSettingsDraft.navbarFillStyle === "gradient"
-                              ? `Choose a stop, then use one shared palette to update ${activeNavbarSurfaceLabel.toLowerCase()}.`
-                              : "Choose the navbar background color from one shared palette."}
-                          </p>
-                        </div>
-                        <label className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-2 text-[11px] tracking-[0.14em] text-zinc-600 uppercase shadow-[0_6px_16px_rgba(0,0,0,0.04)]">
-                          Custom
-                          <input
-                            type="color"
-                            value={activeNavbarSurfaceValue}
-                            onChange={(event) => applyNavbarSurfaceColor(sanitizeBrandColor(event.target.value))}
-                            className="h-8 w-8 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Surface</p>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              applyBrandingDraftChange((current) => ({
+                                ...current,
+                                navbarColorMode: "custom",
+                                navbarFillStyle: "solid",
+                              }))
+                            }
+                            className={`inline-flex h-9 items-center justify-center rounded-full border px-4 text-[11px] font-semibold tracking-[0.14em] uppercase transition-all ${
+                              normalizedBrandSettingsDraft.navbarFillStyle === "solid"
+                                ? "border-zinc-950 bg-zinc-950 text-white"
+                                : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 hover:text-zinc-950"
+                            }`}
                             disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
-                          />
-                        </label>
+                          >
+                            Solid
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveNavbarPaletteTarget("start");
+                              applyBrandingDraftChange((current) => ({
+                                ...current,
+                                navbarColorMode: "custom",
+                                navbarFillStyle: "gradient",
+                              }));
+                            }}
+                            className={`inline-flex h-9 items-center justify-center rounded-full border px-4 text-[11px] font-semibold tracking-[0.14em] uppercase transition-all ${
+                              normalizedBrandSettingsDraft.navbarFillStyle === "gradient"
+                                ? "border-zinc-950 bg-zinc-950 text-white"
+                                : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 hover:text-zinc-950"
+                            }`}
+                            disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
+                          >
+                            Gradient
+                          </button>
+                        </div>
                       </div>
 
                       {normalizedBrandSettingsDraft.navbarFillStyle === "gradient" ? (
-                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                          <button
-                            type="button"
-                            onClick={() => setActiveNavbarPaletteTarget("start")}
-                            disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
-                            className={`flex items-center gap-3 rounded-[1rem] border px-3 py-2.5 text-left transition-all ${
-                              activeNavbarPaletteTarget === "start"
-                                ? "border-zinc-950 bg-zinc-950 text-white shadow-[0_12px_28px_rgba(17,17,17,0.16)]"
-                                : "border-zinc-200 bg-white text-zinc-900 hover:border-zinc-400"
-                            } disabled:cursor-not-allowed disabled:opacity-45`}
-                          >
-                            <span
-                              className={`h-4 w-4 rounded-full border ${activeNavbarPaletteTarget === "start" ? "border-white/65" : "border-black/10"}`}
-                              style={{ backgroundColor: normalizedBrandSettingsDraft.navbarBackgroundColor }}
-                              aria-hidden="true"
-                            />
-                            <span className="min-w-0">
-                              <span className={`block text-[10px] tracking-[0.14em] uppercase ${activeNavbarPaletteTarget === "start" ? "text-white/72" : "text-zinc-500"}`}>
-                                Start Color
+                        <div className="mt-3">
+                          <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Gradient</p>
+                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                            <button
+                              type="button"
+                              onClick={() => setActiveNavbarPaletteTarget("start")}
+                              disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
+                              className={`flex items-center gap-3 rounded-[1rem] border px-3 py-2.5 text-left transition-all ${
+                                activeNavbarPaletteTarget === "start"
+                                  ? "border-zinc-950 bg-zinc-950 text-white shadow-[0_12px_28px_rgba(17,17,17,0.16)]"
+                                  : "border-zinc-200 bg-white text-zinc-900 hover:border-zinc-400"
+                              } disabled:cursor-not-allowed disabled:opacity-45`}
+                            >
+                              <span
+                                className={`h-4 w-4 rounded-full border ${activeNavbarPaletteTarget === "start" ? "border-white/65" : "border-black/10"}`}
+                                style={{ backgroundColor: normalizedBrandSettingsDraft.navbarBackgroundColor }}
+                                aria-hidden="true"
+                              />
+                              <span className="min-w-0">
+                                <span className={`block text-[10px] tracking-[0.14em] uppercase ${activeNavbarPaletteTarget === "start" ? "text-white/72" : "text-zinc-500"}`}>
+                                  Start Color
+                                </span>
+                                <span className="mt-0.5 block truncate text-sm font-semibold">{navbarStartColorName}</span>
                               </span>
-                              <span className="mt-0.5 block truncate text-sm font-semibold">{navbarStartColorName}</span>
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setActiveNavbarPaletteTarget("end")}
-                            disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
-                            className={`flex items-center gap-3 rounded-[1rem] border px-3 py-2.5 text-left transition-all ${
-                              activeNavbarPaletteTarget === "end"
-                                ? "border-zinc-950 bg-zinc-950 text-white shadow-[0_12px_28px_rgba(17,17,17,0.16)]"
-                                : "border-zinc-200 bg-white text-zinc-900 hover:border-zinc-400"
-                            } disabled:cursor-not-allowed disabled:opacity-45`}
-                          >
-                            <span
-                              className={`h-4 w-4 rounded-full border ${activeNavbarPaletteTarget === "end" ? "border-white/65" : "border-black/10"}`}
-                              style={{ backgroundColor: normalizedBrandSettingsDraft.navbarGradientColor }}
-                              aria-hidden="true"
-                            />
-                            <span className="min-w-0">
-                              <span className={`block text-[10px] tracking-[0.14em] uppercase ${activeNavbarPaletteTarget === "end" ? "text-white/72" : "text-zinc-500"}`}>
-                                End Color
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setActiveNavbarPaletteTarget("end")}
+                              disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
+                              className={`flex items-center gap-3 rounded-[1rem] border px-3 py-2.5 text-left transition-all ${
+                                activeNavbarPaletteTarget === "end"
+                                  ? "border-zinc-950 bg-zinc-950 text-white shadow-[0_12px_28px_rgba(17,17,17,0.16)]"
+                                  : "border-zinc-200 bg-white text-zinc-900 hover:border-zinc-400"
+                              } disabled:cursor-not-allowed disabled:opacity-45`}
+                            >
+                              <span
+                                className={`h-4 w-4 rounded-full border ${activeNavbarPaletteTarget === "end" ? "border-white/65" : "border-black/10"}`}
+                                style={{ backgroundColor: normalizedBrandSettingsDraft.navbarGradientColor }}
+                                aria-hidden="true"
+                              />
+                              <span className="min-w-0">
+                                <span className={`block text-[10px] tracking-[0.14em] uppercase ${activeNavbarPaletteTarget === "end" ? "text-white/72" : "text-zinc-500"}`}>
+                                  End Color
+                                </span>
+                                <span className="mt-0.5 block truncate text-sm font-semibold">{navbarEndColorName}</span>
                               </span>
-                              <span className="mt-0.5 block truncate text-sm font-semibold">{navbarEndColorName}</span>
-                            </span>
-                          </button>
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div className="mt-3 flex items-center gap-3 rounded-[1rem] border border-zinc-200 bg-white px-3 py-2.5 shadow-[0_8px_18px_rgba(0,0,0,0.04)]">
@@ -4601,31 +4701,27 @@ export default function AdminDashboard() {
                         </div>
                       )}
 
-                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">
-                          Palette editing {activeNavbarSurfaceLabel.toLowerCase()}
-                        </p>
-                        <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-[11px] font-medium text-zinc-700 shadow-[0_6px_16px_rgba(0,0,0,0.04)]">
-                          <span
-                            className="h-3.5 w-3.5 rounded-full border border-black/10"
-                            style={{ backgroundColor: activeNavbarSurfaceValue }}
-                            aria-hidden="true"
-                          />
-                          {activeNavbarSurfaceName}
-                        </span>
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {CHROME_BACKGROUND_COLOR_OPTIONS.map((option) => (
-                          <CompactColorChipButton
-                            key={`navbar-surface-${option.value}`}
-                            label={option.label}
-                            value={option.value}
-                            selected={activeNavbarSurfaceValue === option.value}
-                            onClick={() => applyNavbarSurfaceColor(option.value)}
+                      <div className="mt-3">
+                        <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Choose color</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {CHROME_BACKGROUND_COLOR_OPTIONS.map((option) => (
+                            <CompactColorChipButton
+                              key={`navbar-surface-${option.value}`}
+                              label={option.label}
+                              value={option.value}
+                              selected={activeNavbarSurfaceValue === option.value}
+                              onClick={() => applyNavbarSurfaceColor(option.value)}
+                              disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
+                            />
+                          ))}
+                          <CustomColorChipButton
+                            label={`Custom ${activeNavbarSurfaceLabel.toLowerCase()}`}
+                            value={activeNavbarSurfaceValue}
+                            selected={!navbarSurfaceUsesPresetColor}
+                            onChange={(event) => applyNavbarSurfaceColor(sanitizeBrandColor(event.target.value))}
                             disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
                           />
-                        ))}
+                        </div>
                       </div>
                     </div>
 
@@ -4655,31 +4751,8 @@ export default function AdminDashboard() {
                     </label>
 
                     <div className="rounded-[1.15rem] border border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,248,248,0.96)_100%)] p-3.5">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Nav Text Color</p>
-                          <p className="mt-1 text-sm text-zinc-700">Keep links readable while matching the new surface.</p>
-                        </div>
-                        <label className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-2 text-[11px] tracking-[0.14em] text-zinc-600 uppercase shadow-[0_6px_16px_rgba(0,0,0,0.04)]">
-                          Custom
-                          <input
-                            type="color"
-                            value={normalizedBrandSettingsDraft.navbarTextColor}
-                            onChange={(event) =>
-                              applyBrandingDraftChange((current) => ({
-                                ...current,
-                                navbarColorMode: "custom",
-                                navbarTextColor: sanitizeBrandColor(event.target.value),
-                              }))
-                            }
-                            className="h-8 w-8 cursor-pointer rounded-full border-0 bg-transparent p-0"
-                            disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
-                          />
-                        </label>
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Current text color</p>
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Text Color</p>
                         <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-[11px] font-medium text-zinc-700 shadow-[0_6px_16px_rgba(0,0,0,0.04)]">
                           <span
                             className="h-3.5 w-3.5 rounded-full border border-black/10"
@@ -4689,7 +4762,6 @@ export default function AdminDashboard() {
                           {navbarTextColorName}
                         </span>
                       </div>
-
                       <div className="mt-3 flex flex-wrap gap-2">
                         {CHROME_TEXT_COLOR_OPTIONS.map((option) => (
                           <CompactColorChipButton
@@ -4697,27 +4769,28 @@ export default function AdminDashboard() {
                             label={option.label}
                             value={option.value}
                             selected={normalizedBrandSettingsDraft.navbarTextColor === option.value}
-                            onClick={() =>
-                              applyBrandingDraftChange((current) => ({
-                                ...current,
-                                navbarColorMode: "custom",
-                                navbarTextColor: option.value,
-                              }))
-                            }
+                            onClick={() => applyNavbarTextColor(option.value)}
                             disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
                           />
                         ))}
+                        <CustomColorChipButton
+                          label="Custom header text color"
+                          value={normalizedBrandSettingsDraft.navbarTextColor}
+                          selected={!navbarTextUsesPresetColor}
+                          onChange={(event) => applyNavbarTextColor(sanitizeBrandColor(event.target.value))}
+                          disabled={normalizedBrandSettingsDraft.navbarColorMode === "theme"}
+                        />
                       </div>
                     </div>
                   </div>
                 </div>
               </section>
-
-              <section className="rounded-[1.45rem] border border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(248,248,248,0.96)_100%)] p-4">
+            ) : (
+              <section className="mt-5 rounded-[1.45rem] border border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(248,248,248,0.96)_100%)] p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Footer Surface</p>
-                    <h4 className="mt-1 text-base font-semibold text-zinc-950">Footer background and text</h4>
+                    <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Footer</p>
+                    <h4 className="mt-1 text-base font-semibold text-zinc-950">Background and footer text</h4>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -4755,131 +4828,120 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                <div
-                  className="mt-4 rounded-[1.2rem] border p-4"
-                  style={{
-                    background: brandingPreviewVars["--footer-bg"],
-                    borderColor: brandingPreviewVars["--footer-border"],
-                    color: brandingPreviewVars["--footer-muted"],
-                  }}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3 text-[10px] tracking-[0.14em] uppercase">
-                    <span style={{ color: brandingPreviewVars["--footer-link"] }}>Instagram</span>
-                    <span>Privacy</span>
-                    <span>© {new Date().getFullYear()} {brandingSampleName}</span>
-                  </div>
-                </div>
-
-                <div className={`mt-4 space-y-4 ${normalizedBrandSettingsDraft.footerColorMode === "theme" ? "opacity-55" : ""}`}>
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Background Color</p>
+                <div className="mt-4 space-y-3.5">
+                  <div
+                    className="rounded-[1.2rem] border p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]"
+                    style={{
+                      background: brandingPreviewVars["--footer-bg"],
+                      borderColor: brandingPreviewVars["--footer-border"],
+                      color: brandingPreviewVars["--footer-muted"],
+                    }}
+                  >
+                    <p className="text-[10px] font-semibold tracking-[0.14em] uppercase" style={{ color: brandingPreviewVars["--footer-ink"] }}>
+                      Live Footer Preview
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-3 text-[10px] tracking-[0.14em] uppercase">
+                      <span style={{ color: brandingPreviewVars["--footer-link"] }}>Instagram</span>
+                      <span>Privacy</span>
+                      <span>© {new Date().getFullYear()} {brandingSampleName}</span>
                     </div>
-                    <label className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-2 text-[11px] tracking-[0.14em] text-zinc-600 uppercase">
-                      Custom
-                      <input
-                        type="color"
-                        value={normalizedBrandSettingsDraft.footerBackgroundColor}
-                        onChange={(event) =>
-                          applyBrandingDraftChange((current) => ({
-                            ...current,
-                            footerColorMode: "custom",
-                            footerBackgroundColor: sanitizeBrandColor(event.target.value),
-                          }))
-                        }
-                        className="h-8 w-8 cursor-pointer rounded-full border-0 bg-transparent p-0"
-                        disabled={normalizedBrandSettingsDraft.footerColorMode === "theme"}
-                      />
+                  </div>
+
+                  <div className={`space-y-3.5 ${normalizedBrandSettingsDraft.footerColorMode === "theme" ? "opacity-55" : ""}`}>
+                    <div className="rounded-[1.15rem] border border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,248,248,0.96)_100%)] p-3.5">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Surface</p>
+                        <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-[11px] font-medium text-zinc-700 shadow-[0_6px_16px_rgba(0,0,0,0.04)]">
+                          <span
+                            className="h-3.5 w-3.5 rounded-full border border-black/10"
+                            style={{ backgroundColor: normalizedBrandSettingsDraft.footerBackgroundColor }}
+                            aria-hidden="true"
+                          />
+                          {footerBackgroundColorName}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {CHROME_BACKGROUND_COLOR_OPTIONS.map((option) => (
+                          <CompactColorChipButton
+                            key={`footer-bg-${option.value}`}
+                            label={option.label}
+                            value={option.value}
+                            selected={normalizedBrandSettingsDraft.footerBackgroundColor === option.value}
+                            onClick={() => applyFooterBackgroundColor(option.value)}
+                            disabled={normalizedBrandSettingsDraft.footerColorMode === "theme"}
+                          />
+                        ))}
+                        <CustomColorChipButton
+                          label="Custom footer surface color"
+                          value={normalizedBrandSettingsDraft.footerBackgroundColor}
+                          selected={!footerBackgroundUsesPresetColor}
+                          onChange={(event) => applyFooterBackgroundColor(sanitizeBrandColor(event.target.value))}
+                          disabled={normalizedBrandSettingsDraft.footerColorMode === "theme"}
+                        />
+                      </div>
+                    </div>
+
+                    <label className="block rounded-[1.15rem] border border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,248,248,0.96)_100%)] p-3.5 text-sm text-zinc-700">
+                      <span className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Opacity</span>
+                      <div className="mt-2 flex items-center gap-3">
+                        <input
+                          type="range"
+                          min="25"
+                          max="100"
+                          step="1"
+                          value={normalizedBrandSettingsDraft.footerOpacity}
+                          onChange={(event) =>
+                            applyBrandingDraftChange((current) => ({
+                              ...current,
+                              footerColorMode: "custom",
+                              footerOpacity: Number(event.target.value),
+                            }))
+                          }
+                          className="h-2 flex-1 accent-zinc-900"
+                          disabled={normalizedBrandSettingsDraft.footerColorMode === "theme"}
+                        />
+                        <span className="min-w-[3rem] rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-center text-xs font-semibold text-zinc-800">
+                          {normalizedBrandSettingsDraft.footerOpacity}%
+                        </span>
+                      </div>
                     </label>
-                  </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    {CHROME_BACKGROUND_COLOR_OPTIONS.map((option) => (
-                      <ColorSwatchButton
-                        key={`footer-bg-${option.value}`}
-                        label={option.label}
-                        value={option.value}
-                        selected={normalizedBrandSettingsDraft.footerBackgroundColor === option.value}
-                        onClick={() =>
-                          applyBrandingDraftChange((current) => ({
-                            ...current,
-                            footerColorMode: "custom",
-                            footerBackgroundColor: option.value,
-                          }))
-                        }
-                        disabled={normalizedBrandSettingsDraft.footerColorMode === "theme"}
-                      />
-                    ))}
-                  </div>
-
-                  <label className="block text-sm text-zinc-700">
-                    Opacity
-                    <div className="mt-2 flex items-center gap-3">
-                      <input
-                        type="range"
-                        min="25"
-                        max="100"
-                        step="1"
-                        value={normalizedBrandSettingsDraft.footerOpacity}
-                        onChange={(event) =>
-                          applyBrandingDraftChange((current) => ({
-                            ...current,
-                            footerColorMode: "custom",
-                            footerOpacity: Number(event.target.value),
-                          }))
-                        }
-                        className="h-2 flex-1 accent-zinc-900"
-                        disabled={normalizedBrandSettingsDraft.footerColorMode === "theme"}
-                      />
-                      <span className="min-w-[3rem] rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-center text-xs font-semibold text-zinc-800">
-                        {normalizedBrandSettingsDraft.footerOpacity}%
-                      </span>
+                    <div className="rounded-[1.15rem] border border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,248,248,0.96)_100%)] p-3.5">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Text Color</p>
+                        <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-[11px] font-medium text-zinc-700 shadow-[0_6px_16px_rgba(0,0,0,0.04)]">
+                          <span
+                            className="h-3.5 w-3.5 rounded-full border border-black/10"
+                            style={{ backgroundColor: normalizedBrandSettingsDraft.footerTextColor }}
+                            aria-hidden="true"
+                          />
+                          {footerTextColorName}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {CHROME_TEXT_COLOR_OPTIONS.map((option) => (
+                          <CompactColorChipButton
+                            key={`footer-text-${option.value}`}
+                            label={option.label}
+                            value={option.value}
+                            selected={normalizedBrandSettingsDraft.footerTextColor === option.value}
+                            onClick={() => applyFooterTextColor(option.value)}
+                            disabled={normalizedBrandSettingsDraft.footerColorMode === "theme"}
+                          />
+                        ))}
+                        <CustomColorChipButton
+                          label="Custom footer text color"
+                          value={normalizedBrandSettingsDraft.footerTextColor}
+                          selected={!footerTextUsesPresetColor}
+                          onChange={(event) => applyFooterTextColor(sanitizeBrandColor(event.target.value))}
+                          disabled={normalizedBrandSettingsDraft.footerColorMode === "theme"}
+                        />
+                      </div>
                     </div>
-                  </label>
-
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Footer Text Color</p>
-                    </div>
-                    <label className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-2 text-[11px] tracking-[0.14em] text-zinc-600 uppercase">
-                      Custom
-                      <input
-                        type="color"
-                        value={normalizedBrandSettingsDraft.footerTextColor}
-                        onChange={(event) =>
-                          applyBrandingDraftChange((current) => ({
-                            ...current,
-                            footerColorMode: "custom",
-                            footerTextColor: sanitizeBrandColor(event.target.value),
-                          }))
-                        }
-                        className="h-8 w-8 cursor-pointer rounded-full border-0 bg-transparent p-0"
-                        disabled={normalizedBrandSettingsDraft.footerColorMode === "theme"}
-                      />
-                    </label>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {CHROME_TEXT_COLOR_OPTIONS.map((option) => (
-                      <ColorSwatchButton
-                        key={`footer-text-${option.value}`}
-                        label={option.label}
-                        value={option.value}
-                        selected={normalizedBrandSettingsDraft.footerTextColor === option.value}
-                        onClick={() =>
-                          applyBrandingDraftChange((current) => ({
-                            ...current,
-                            footerColorMode: "custom",
-                            footerTextColor: option.value,
-                          }))
-                        }
-                        disabled={normalizedBrandSettingsDraft.footerColorMode === "theme"}
-                      />
-                    ))}
                   </div>
                 </div>
               </section>
-            </div>
+            )}
 
             <div className="relative mt-5 overflow-hidden rounded-[1.55rem] border border-zinc-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.99)_0%,rgba(246,244,240,0.98)_100%)] p-3 shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
               <div className="pointer-events-none absolute inset-x-6 top-0 h-1 rounded-b-full bg-[linear-gradient(90deg,#111111_0%,#d8b267_42%,#8b5cf6_100%)] opacity-75" />
