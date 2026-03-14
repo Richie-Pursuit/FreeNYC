@@ -1,10 +1,14 @@
+const CODE_ADMIN_EMAILS = ["richiecarrasco@pursuit.org"];
+
 export function getAllowedAdminEmails() {
   const csv = process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || "";
 
-  return csv
+  const envEmails = csv
     .split(",")
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
+
+  return envEmails.length > 0 ? envEmails : CODE_ADMIN_EMAILS;
 }
 
 export function isAllowedAdminEmail(email) {
@@ -16,7 +20,7 @@ export function isAllowedAdminEmail(email) {
   }
 
   if (allowed.length === 0) {
-    return true;
+    return false;
   }
 
   return allowed.includes(normalized);
