@@ -22,7 +22,7 @@ export default async function GalleryPage() {
     <div className="min-h-screen bg-background">
       <main
         id="main-content"
-        className="motion-page-enter mx-auto w-full max-w-[1800px] px-4 py-10 sm:px-8 lg:px-12"
+        className="motion-page-enter mx-auto w-full max-w-[1800px] px-3 py-7 sm:px-8 sm:py-10 lg:px-12"
       >
         <PhotoGallery photos={photos} layout="masonry" showFilters />
       </main>

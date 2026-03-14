@@ -152,26 +152,32 @@ export default function PhotoGallery({
   return (
     <>
       {showFilters ? (
-        <div className="mb-6 flex flex-wrap gap-2 sm:mb-8 sm:gap-3" role="toolbar" aria-label="Filter photos by collection">
-          {collections.map((collection) => {
-            const isActive = collection === activeCollection;
+        <div
+          className="-mx-1 mb-5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:mb-8 sm:overflow-visible sm:px-0 sm:pb-0"
+          role="toolbar"
+          aria-label="Filter photos by collection"
+        >
+          <div className="flex min-w-max gap-2 sm:flex-wrap sm:gap-2.5">
+            {collections.map((collection) => {
+              const isActive = collection === activeCollection;
 
-            return (
-              <button
-                key={collection}
-                type="button"
-                onClick={() => handleCollectionChange(collection)}
-                aria-pressed={isActive}
-                className={`min-h-11 border px-4 py-2.5 text-[12px] tracking-[0.12em] uppercase transition-colors sm:py-2 ${
-                  isActive
-                    ? "theme-primary-button"
-                    : "theme-secondary-button"
-                }`}
-              >
-                {collection}
-              </button>
-            );
-          })}
+              return (
+                <button
+                  key={collection}
+                  type="button"
+                  onClick={() => handleCollectionChange(collection)}
+                  aria-pressed={isActive}
+                  className={`min-h-10 whitespace-nowrap border px-3.5 py-2 text-[11px] tracking-[0.11em] uppercase transition-colors sm:min-h-11 sm:px-4 sm:text-[12px] ${
+                    isActive
+                      ? "theme-primary-button"
+                      : "theme-secondary-button"
+                  }`}
+                >
+                  {collection}
+                </button>
+              );
+            })}
+          </div>
         </div>
       ) : null}
 

@@ -27,13 +27,13 @@ export default async function AboutPage() {
     <div className="min-h-screen bg-background">
       <main
         id="main-content"
-        className="motion-page-enter mx-auto w-full max-w-[1400px] px-4 py-10 sm:px-8 sm:py-12 lg:px-12 lg:py-16"
+        className="motion-page-enter mx-auto w-full max-w-[1400px] px-3 py-7 sm:px-8 sm:py-12 lg:px-12 lg:py-16"
       >
-        <div className="grid gap-8 lg:grid-cols-[1.05fr_1.4fr] lg:gap-14">
-          <aside className="lg:sticky lg:top-24 lg:self-start">
+        <div className="grid gap-6 sm:gap-8 lg:grid-cols-[1.05fr_1.4fr] lg:gap-14">
+          <aside className="order-2 lg:order-1 lg:sticky lg:top-24 lg:self-start">
             <figure className="theme-elevated relative overflow-hidden border bg-[var(--image-fallback)]">
               <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_18%,rgba(255,255,255,0.42),transparent_44%),radial-gradient(circle_at_82%_88%,rgba(10,10,10,0.17),transparent_46%)]" />
-              <div className="relative aspect-[4/5] w-full">
+              <div className="relative aspect-[4/3] w-full sm:aspect-[5/4] lg:aspect-[4/5]">
                 {hero.imageUrl ? (
                   <Image
                     src={hero.imageUrl}
@@ -52,18 +52,18 @@ export default async function AboutPage() {
             </figure>
           </aside>
 
-          <section>
-            <p className="text-[12px] font-semibold tracking-[0.2em] text-foreground/75 uppercase">
+          <section className="order-1 lg:order-2">
+            <p className="text-[11px] font-semibold tracking-[0.14em] text-foreground/80 uppercase sm:text-[12px] sm:tracking-[0.2em]">
               {header.introLabel}
             </p>
             <h1 className="display-font mt-3 text-4xl leading-[0.95] text-foreground sm:text-6xl lg:text-7xl">
               {header.headline}
             </h1>
-            <p className="mt-3 max-w-2xl text-base leading-8 text-foreground/85 sm:text-lg">
+            <p className="mt-2.5 max-w-2xl text-[15px] leading-7 text-foreground/88 sm:mt-3 sm:text-lg sm:leading-8">
               {header.supportingLine}
             </p>
 
-            <div className="mt-7 border-t border-line pt-7 sm:mt-8 sm:pt-8">
+            <div className="mt-6 border-t border-line pt-6 sm:mt-8 sm:pt-8">
               <div className="space-y-4 text-[15px] leading-8 text-foreground/90 sm:text-base">
                 {paragraphs.map((paragraph, index) => (
                   <p key={`about-paragraph-${index}`}>{paragraph}</p>

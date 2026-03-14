@@ -279,14 +279,14 @@ export function getNavbarBrandTextClass(name = siteBrand.name) {
   const length = String(name || "").trim().length;
 
   if (length > 20) {
-    return "max-w-[10ch] text-[1.2rem] leading-[0.92] sm:max-w-[13ch] sm:text-[1.65rem] lg:text-[1.95rem]";
+    return "max-w-[9ch] text-[1.05rem] leading-[0.92] sm:max-w-[13ch] sm:text-[1.65rem] lg:text-[1.95rem]";
   }
 
   if (length > 12) {
-    return "max-w-[11ch] text-[1.45rem] leading-[0.94] sm:max-w-[14ch] sm:text-[2rem] lg:text-[2.2rem]";
+    return "max-w-[10ch] text-[1.28rem] leading-[0.94] sm:max-w-[14ch] sm:text-[2rem] lg:text-[2.2rem]";
   }
 
-  return "text-[1.86rem] leading-none sm:text-[2.5rem]";
+  return "text-[1.68rem] leading-none sm:text-[2.5rem]";
 }
 
 export function getNavbarBrandFontOption(fontKey) {

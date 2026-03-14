@@ -240,18 +240,15 @@ export default function Navbar({ initialSettings = null }) {
   );
 
   return (
-    <header className="theme-header-shell sticky top-0 z-40 border-b px-3 pt-[calc(env(safe-area-inset-top)+0.9rem)] pb-3 backdrop-blur-md sm:px-6 sm:pt-[calc(env(safe-area-inset-top)+1rem)] sm:pb-3 lg:px-12 lg:pt-[calc(env(safe-area-inset-top)+1.15rem)] lg:pb-4">
+    <header className="theme-header-shell sticky top-0 z-40 border-b px-3 pt-[calc(env(safe-area-inset-top)+0.55rem)] pb-2.5 backdrop-blur-md sm:px-6 sm:pt-[calc(env(safe-area-inset-top)+1rem)] sm:pb-3 lg:px-12 lg:pt-[calc(env(safe-area-inset-top)+1.15rem)] lg:pb-4">
       <div className="mx-auto w-full max-w-[1800px]">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-2.5 sm:gap-3">
           <Link
             href="/"
-            className="group relative inline-flex items-center gap-2 rounded-md px-1 py-0.5 sm:gap-2.5"
+            className="group relative inline-flex max-w-[calc(100vw-8.75rem)] items-center gap-1.5 rounded-md px-1 py-0.5 sm:max-w-none sm:gap-2.5"
             aria-label={brandSettings.brandName}
           >
-            <BrandLogoMark
-              settings={brandSettings}
-              className="h-8 w-10 sm:h-9 sm:w-11"
-            />
+            <BrandLogoMark settings={brandSettings} className="h-7 w-9 sm:h-9 sm:w-11" />
             <span
               className={`logo-font relative z-10 block whitespace-normal text-balance text-zinc-950 transition-transform duration-300 group-hover:scale-[1.015] ${brandTextClass}`}
               style={brandTextStyle}
@@ -260,7 +257,7 @@ export default function Navbar({ initialSettings = null }) {
             </span>
           </Link>
 
-          <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-2.5 sm:gap-4">
             <nav className="hidden items-center gap-6 lg:gap-8 md:flex" aria-label="Primary">
               {navLinks.map((link) => (
                 <Link
@@ -286,7 +283,7 @@ export default function Navbar({ initialSettings = null }) {
                   setShowAdminPassword(false);
                   setAdminError("");
                 }}
-                className="theme-secondary-button inline-flex h-11 w-11 items-center justify-center rounded-full border transition-colors"
+                className="theme-secondary-button inline-flex h-10 w-10 items-center justify-center rounded-full border transition-colors sm:h-11 sm:w-11"
                 aria-label="Admin access"
                 aria-expanded={adminGateOpen}
               >
@@ -298,7 +295,7 @@ export default function Navbar({ initialSettings = null }) {
             <button
               type="button"
               onClick={() => setMobileNavOpen((open) => !open)}
-              className="theme-secondary-button flex h-11 w-11 items-center justify-center rounded-md border transition-colors md:hidden"
+              className="theme-secondary-button flex h-10 w-10 items-center justify-center rounded-xl border transition-colors md:hidden sm:h-11 sm:w-11"
               aria-label="Toggle menu"
               aria-expanded={mobileNavOpen}
             >
@@ -308,13 +305,13 @@ export default function Navbar({ initialSettings = null }) {
         </div>
 
         {mobileNavOpen ? (
-          <div className="mt-3 grid gap-2 border-t border-line pt-3 md:hidden">
+          <div className="mt-2.5 grid gap-1.5 border-t border-line pt-2.5 md:hidden">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 aria-current={isActive(link.href) ? "page" : undefined}
-                className={`border-b px-2 py-3 text-[15px] font-semibold tracking-[0.07em] uppercase transition-colors ${
+                className={`border-b px-2 py-2.5 text-[14px] font-semibold tracking-[0.07em] uppercase transition-colors ${
                   isActive(link.href)
                     ? "border-[color:var(--header-ink)] text-[color:var(--header-ink)]"
                     : "border-transparent text-[color:var(--header-muted)] hover:border-[color:var(--accent)] hover:text-[color:var(--header-ink)]"
