@@ -73,15 +73,38 @@ function MenuIcon({ open = false }) {
   );
 }
 
+function toNavbarLiveSettings(input = null) {
+  const normalized = normalizeSiteSettings(input || getDefaultSiteSettingsValues());
+
+  return {
+    brandName: normalized.brandName,
+    fontKey: normalized.fontKey,
+    textColor: normalized.textColor,
+    logoColor: normalized.logoColor,
+    logoMode: normalized.logoMode,
+    customLogoDataUrl: normalized.customLogoDataUrl,
+    themeKey: normalized.themeKey,
+    navbarColorMode: normalized.navbarColorMode,
+    navbarFillStyle: normalized.navbarFillStyle,
+    navbarBackgroundColor: normalized.navbarBackgroundColor,
+    navbarGradientColor: normalized.navbarGradientColor,
+    navbarOpacity: normalized.navbarOpacity,
+    navbarTextColor: normalized.navbarTextColor,
+  };
+}
+
+function areNavbarSettingsEqual(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 export default function Navbar({ initialSettings = null }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [brandSettings, setBrandSettings] = useState(() =>
-    normalizeSiteSettings(initialSettings || getDefaultSiteSettingsValues()),
-  );
+  const [brandSettings, setBrandSettings] = useState(() => toNavbarLiveSettings(initialSettings));
 
   useEffect(() => {
-    setBrandSettings(normalizeSiteSettings(initialSettings || getDefaultSiteSettingsValues()));
+    const nextSettings = toNavbarLiveSettings(initialSettings);
+    setBrandSettings((current) => (areNavbarSettingsEqual(current, nextSettings) ? current : nextSettings));
   }, [initialSettings]);
 
   const [adminPassword, setAdminPassword] = useState("");
@@ -105,29 +128,32 @@ export default function Navbar({ initialSettings = null }) {
       try {
         const response = await fetch("/api/site-settings", { cache: "no-store" });
         const data = await response.json().catch(() => ({}));
+        const nextSettings = toNavbarLiveSettings(data?.settings || {});
 
         if (isActive) {
-          setBrandSettings(normalizeSiteSettings(data?.settings || {}));
+          setBrandSettings((current) => (areNavbarSettingsEqual(current, nextSettings) ? current : nextSettings));
         }
       } catch {
         if (isActive) {
-          setBrandSettings(getDefaultSiteSettingsValues());
+          const fallbackSettings = toNavbarLiveSettings(getDefaultSiteSettingsValues());
+          setBrandSettings((current) =>
+            areNavbarSettingsEqual(current, fallbackSettings) ? current : fallbackSettings,
+          );
         }
       }
     };
 
     const handleSiteSettingsUpdated = (event) => {
-      setBrandSettings(normalizeSiteSettings(event?.detail || {}));
+      const nextSettings = toNavbarLiveSettings(event?.detail || {});
+      setBrandSettings((current) => (areNavbarSettingsEqual(current, nextSettings) ? current : nextSettings));
     };
 
     loadSiteBranding();
     window.addEventListener("site-settings-updated", handleSiteSettingsUpdated);
-    window.addEventListener("site-brand-updated", handleSiteSettingsUpdated);
 
     return () => {
       isActive = false;
       window.removeEventListener("site-settings-updated", handleSiteSettingsUpdated);
-      window.removeEventListener("site-brand-updated", handleSiteSettingsUpdated);
     };
   }, []);
 

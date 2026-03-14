@@ -751,6 +751,40 @@ function CustomColorChipButton({
   );
 }
 
+function BrandColorSwatchPalette({
+  options,
+  value,
+  onSelect,
+  onCustomChange,
+  customLabel,
+  disabled = false,
+  className = "",
+}) {
+  const usesPresetColor = hasColorOption(options, value);
+
+  return (
+    <div className={`flex flex-wrap gap-2 ${className}`}>
+      {options.map((option) => (
+        <CompactColorChipButton
+          key={`${customLabel}-${option.value}`}
+          label={option.label}
+          value={option.value}
+          selected={value === option.value}
+          onClick={() => onSelect(option.value)}
+          disabled={disabled}
+        />
+      ))}
+      <CustomColorChipButton
+        label={customLabel}
+        value={value}
+        selected={!usesPresetColor}
+        onChange={onCustomChange}
+        disabled={disabled}
+      />
+    </div>
+  );
+}
+
 function getColorOptionLabel(options, value) {
   return options.find((option) => option.value.toLowerCase() === String(value).toLowerCase())?.label || value;
 }
@@ -1257,6 +1291,9 @@ export default function AdminDashboard() {
   const selectedFontIsExtended = selectedBrandFontOption.group === "extended";
   const brandingSampleName = normalizedBrandSettingsDraft.brandName || siteBrand.name;
   const isBrandingDirty = normalizedBrandSettingsDraftKey !== savedBrandSettingsKey;
+  const wordmarkColorName = getColorOptionLabel(NAVBAR_BRAND_COLOR_OPTIONS, normalizedBrandSettingsDraft.textColor);
+  const fallbackLogoColorName = getColorOptionLabel(NAVBAR_BRAND_COLOR_OPTIONS, normalizedBrandSettingsDraft.logoColor);
+  const globalTextColorName = getColorOptionLabel(GLOBAL_TEXT_COLOR_OPTIONS, normalizedBrandSettingsDraft.globalTextColor);
   const activeNavbarSurfaceTarget =
     normalizedBrandSettingsDraft.navbarFillStyle === "gradient" ? activeNavbarPaletteTarget : "background";
   const activeNavbarSurfaceLabel =
@@ -1506,6 +1543,37 @@ export default function AdminDashboard() {
     [applyBrandingDraftChange],
   );
 
+  const applyWordmarkColor = useCallback(
+    (nextColor) => {
+      applyBrandingDraftChange((current) => ({
+        ...current,
+        textColor: nextColor,
+      }));
+    },
+    [applyBrandingDraftChange],
+  );
+
+  const applyFallbackLogoColor = useCallback(
+    (nextColor) => {
+      applyBrandingDraftChange((current) => ({
+        ...current,
+        logoColor: nextColor,
+      }));
+    },
+    [applyBrandingDraftChange],
+  );
+
+  const applyGlobalTextColor = useCallback(
+    (nextColor) => {
+      applyBrandingDraftChange((current) => ({
+        ...current,
+        textColorMode: "custom",
+        globalTextColor: nextColor,
+      }));
+    },
+    [applyBrandingDraftChange],
+  );
+
   const applyFooterBackgroundColor = useCallback(
     (nextColor) => {
       applyBrandingDraftChange((current) => ({
@@ -1617,11 +1685,6 @@ export default function AdminDashboard() {
       }
 
       if (typeof window !== "undefined") {
-        window.dispatchEvent(
-          new CustomEvent("site-brand-updated", {
-            detail: savedSettings,
-          }),
-        );
         window.dispatchEvent(
           new CustomEvent("site-settings-updated", {
             detail: savedSettings,
@@ -4254,62 +4317,75 @@ export default function AdminDashboard() {
               <p className="text-[11px] font-semibold tracking-[0.1em] text-zinc-700 uppercase">Colors + Logo</p>
               <h3 className="mt-1 text-[1.35rem] font-semibold tracking-[-0.02em] text-zinc-950">Tune the wordmark and logo</h3>
               <p className="mt-1.5 text-sm text-zinc-700">
-                Set colors fast, upload a PNG if you want, and keep the original mark ready as a fallback.
+                Set the wordmark color, swap the navbar mark, and keep the original logo ready as a fallback.
               </p>
             </div>
 
-            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+            <div className="mt-4 space-y-4">
               <section className="rounded-[1.4rem] border border-zinc-200 bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(249,249,249,0.96)_100%)] p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Wordmark Color</p>
-                    <h4 className="mt-1 text-base font-semibold text-zinc-950">Navbar text</h4>
+                    <h4 className="mt-1 text-[1.08rem] font-semibold text-zinc-950">Navbar wordmark</h4>
                   </div>
-                  <label className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-2 text-[11px] tracking-[0.14em] text-zinc-600 uppercase">
-                    Custom
-                    <input
-                      type="color"
+                  <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-[11px] font-medium text-zinc-700 shadow-[0_6px_16px_rgba(0,0,0,0.04)]">
+                    <span
+                      className="h-3.5 w-3.5 rounded-full border border-black/10"
+                      style={{ backgroundColor: normalizedBrandSettingsDraft.textColor }}
+                      aria-hidden="true"
+                    />
+                    {wordmarkColorName}
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(320px,1.05fr)]">
+                  <div className="rounded-[1.15rem] border border-zinc-200 bg-white p-3.5 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+                    <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Choose color</p>
+                    <BrandColorSwatchPalette
+                      options={NAVBAR_BRAND_COLOR_OPTIONS}
                       value={normalizedBrandSettingsDraft.textColor}
-                      onChange={(event) =>
-                        applyBrandingDraftChange((current) => ({
-                          ...current,
-                          textColor: sanitizeBrandColor(event.target.value),
-                        }))
-                      }
-                      className="h-8 w-8 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                      onSelect={applyWordmarkColor}
+                      onCustomChange={(event) => applyWordmarkColor(sanitizeBrandColor(event.target.value))}
+                      customLabel="Custom wordmark color"
+                      className="mt-3"
                     />
-                  </label>
-                </div>
+                  </div>
 
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {NAVBAR_BRAND_COLOR_OPTIONS.map((option) => (
-                    <ColorSwatchButton
-                      key={`text-${option.value}`}
-                      label={option.label}
-                      value={option.value}
-                      selected={normalizedBrandSettingsDraft.textColor === option.value}
-                      onClick={() =>
-                        applyBrandingDraftChange((current) => ({
-                          ...current,
-                          textColor: option.value,
-                        }))
-                      }
-                    />
-                  ))}
-                </div>
-
-                <div className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4">
-                  <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Preview</p>
-                  <p
-                    className="mt-2 break-words text-[1.75rem] leading-[0.9]"
+                  <div
+                    className="rounded-[1.15rem] border p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]"
                     style={{
-                      ...selectedBrandFontOption.style,
-                      color: normalizedBrandSettingsDraft.textColor,
+                      background: brandingPreviewVars["--header-bg"],
+                      borderColor: brandingPreviewVars["--header-border"],
                     }}
                   >
-                    {brandingSampleName}
-                  </p>
-                  <p className="mt-2 text-xs text-zinc-500">Current hex: {normalizedBrandSettingsDraft.textColor}</p>
+                    <p className="text-[10px] font-semibold tracking-[0.14em] uppercase" style={{ color: brandingPreviewVars["--header-ink"] }}>
+                      Live Wordmark Preview
+                    </p>
+                    <div className="mt-3 flex items-center justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={`${brandingPreviewClass} break-words text-[1.7rem] leading-[0.92] sm:text-[1.95rem]`}
+                          style={{
+                            ...brandingPreviewStyle,
+                            color: normalizedBrandSettingsDraft.textColor,
+                          }}
+                        >
+                          {brandingSampleName}
+                        </p>
+                      </div>
+                      <div
+                        className="hidden shrink-0 items-center gap-4 text-[10px] tracking-[0.14em] uppercase sm:flex"
+                        style={{ color: brandingPreviewVars["--header-muted"] }}
+                      >
+                        <span>Gallery</span>
+                        <span>About</span>
+                        <span>Contact</span>
+                      </div>
+                    </div>
+                    <p className="mt-3 text-xs" style={{ color: brandingPreviewVars["--header-muted"] }}>
+                      Current hex: {normalizedBrandSettingsDraft.textColor}
+                    </p>
+                  </div>
                 </div>
               </section>
 
@@ -4317,11 +4393,12 @@ export default function AdminDashboard() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Logo Source</p>
-                    <h4 className="mt-1 text-base font-semibold text-zinc-950">Navbar logo mark</h4>
+                    <h4 className="mt-1 text-[1.08rem] font-semibold text-zinc-950">Navbar logo</h4>
+                    <p className="mt-1.5 text-sm text-zinc-700">Upload a PNG logo to replace the original mark.</p>
                   </div>
                   <span className="rounded-full border border-zinc-200 bg-white px-3 py-2 text-[10px] tracking-[0.14em] text-zinc-700 uppercase">
                     {isUsingUploadedBrandLogo
-                      ? "Using PNG"
+                      ? "PNG Active"
                       : hasUploadedBrandLogo
                         ? "Original Active"
                         : "Original Only"}
@@ -4382,104 +4459,86 @@ export default function AdminDashboard() {
                   </button>
                 </div>
 
-                <p className="mt-3 text-xs text-zinc-500">
-                  PNG logos are scaled into a navbar-safe box automatically. The original mark always stays available.
-                </p>
-
-                <div className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4">
-                  <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Current navbar logo</p>
-                  <div className="mt-3 flex flex-wrap items-center gap-4">
-                    <BrandLogoMark
-                      settings={normalizedBrandSettingsDraft}
-                      className="h-14 w-20"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-zinc-950">
-                        {isUsingUploadedBrandLogo ? "Custom PNG is live" : "Original mark is live"}
-                      </p>
-                      <p className="mt-1 text-xs text-zinc-500">
-                        {hasUploadedBrandLogo
-                          ? "Switch between the original mark and your uploaded PNG whenever you like."
-                          : "Upload a transparent PNG if you want a custom navbar logo."}
-                      </p>
-                    </div>
-                  </div>
-
-                  {hasUploadedBrandLogo ? (
-                    <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-3">
-                      <p className="text-[10px] tracking-[0.14em] text-zinc-500 uppercase">Uploaded PNG Preview</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-3">
-                        <Image
-                          src={normalizedBrandSettingsDraft.customLogoDataUrl}
-                          alt=""
-                          width={220}
-                          height={88}
-                          unoptimized
-                          className="max-h-14 w-auto max-w-[11rem] object-contain"
-                          draggable={false}
-                        />
-                        <p className="text-xs text-zinc-500">
-                          Prepared for the navbar and saved with your branding settings.
+                <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.06fr)_minmax(320px,0.94fr)]">
+                  <div className="rounded-[1.15rem] border border-zinc-200 bg-white p-4 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+                    <p className="text-[11px] font-semibold tracking-[0.14em] text-zinc-500 uppercase">Logo Preview</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-4">
+                      <BrandLogoMark
+                        settings={normalizedBrandSettingsDraft}
+                        className="h-14 w-20"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-zinc-950">
+                          {isUsingUploadedBrandLogo ? "PNG logo is live" : "Original mark is live"}
+                        </p>
+                        <p className="mt-1 text-sm text-zinc-700">
+                          {isUsingUploadedBrandLogo
+                            ? "Your uploaded PNG is currently showing in the navbar."
+                            : "The built-in mark is currently active in the navbar."}
                         </p>
                       </div>
                     </div>
-                  ) : null}
-                </div>
 
-                <div className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Original Mark Color</p>
-                      <h5 className="mt-1 text-sm font-semibold text-zinc-950">Fallback logo color</h5>
+                    <div className="mt-4 rounded-[1rem] border border-zinc-200 bg-zinc-50/80 p-3">
+                      <p className="text-[10px] tracking-[0.14em] text-zinc-500 uppercase">
+                        {hasUploadedBrandLogo ? "PNG Preview" : "PNG Logo"}
+                      </p>
+                      {hasUploadedBrandLogo ? (
+                        <div className="mt-2 flex flex-wrap items-center gap-3">
+                          <Image
+                            src={normalizedBrandSettingsDraft.customLogoDataUrl}
+                            alt=""
+                            width={220}
+                            height={88}
+                            unoptimized
+                            className="max-h-14 w-auto max-w-[11rem] object-contain"
+                            draggable={false}
+                          />
+                          <p className="text-sm text-zinc-700">Prepared for the navbar and ready to use.</p>
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-zinc-700">Upload a PNG to preview it here.</p>
+                      )}
                     </div>
-                    <label className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-2 text-[11px] tracking-[0.14em] text-zinc-600 uppercase">
-                      Custom
-                      <input
-                        type="color"
-                        value={normalizedBrandSettingsDraft.logoColor}
-                        onChange={(event) =>
-                          applyBrandingDraftChange((current) => ({
-                            ...current,
-                            logoColor: sanitizeBrandColor(event.target.value),
-                          }))
-                        }
-                        className="h-8 w-8 cursor-pointer rounded-full border-0 bg-transparent p-0"
-                      />
-                    </label>
                   </div>
 
-                  <p className="mt-2 text-xs text-zinc-500">
-                    This color stays ready for the built-in logo whenever you switch back from a PNG.
-                  </p>
+                  <div className="rounded-[1.15rem] border border-zinc-200 bg-white p-4 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Fallback Logo Color</p>
+                        <h5 className="mt-1 text-[0.98rem] font-semibold text-zinc-950">Original mark color</h5>
+                      </div>
+                      <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-[11px] font-medium text-zinc-700 shadow-[0_6px_16px_rgba(0,0,0,0.04)]">
+                        <span
+                          className="h-3.5 w-3.5 rounded-full border border-black/10"
+                          style={{ backgroundColor: normalizedBrandSettingsDraft.logoColor }}
+                          aria-hidden="true"
+                        />
+                        {fallbackLogoColorName}
+                      </span>
+                    </div>
 
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {NAVBAR_BRAND_COLOR_OPTIONS.map((option) => (
-                      <ColorSwatchButton
-                        key={`logo-${option.value}`}
-                        label={option.label}
-                        value={option.value}
-                        selected={normalizedBrandSettingsDraft.logoColor === option.value}
-                        onClick={() =>
-                          applyBrandingDraftChange((current) => ({
-                            ...current,
-                            logoColor: option.value,
-                          }))
-                        }
-                      />
-                    ))}
-                  </div>
-
-                  <div className="mt-4 flex items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
-                    <BrandLogoMark
-                      settings={{
-                        ...normalizedBrandSettingsDraft,
-                        logoMode: "default",
-                      }}
-                      className="h-12 w-14"
+                    <BrandColorSwatchPalette
+                      options={NAVBAR_BRAND_COLOR_OPTIONS}
+                      value={normalizedBrandSettingsDraft.logoColor}
+                      onSelect={applyFallbackLogoColor}
+                      onCustomChange={(event) => applyFallbackLogoColor(sanitizeBrandColor(event.target.value))}
+                      customLabel="Custom fallback logo color"
+                      className="mt-3"
                     />
-                    <div>
-                      <p className="text-sm font-semibold text-zinc-950">Original mark preview</p>
-                      <p className="mt-1 text-xs text-zinc-500">Current hex: {normalizedBrandSettingsDraft.logoColor}</p>
+
+                    <div className="mt-4 flex items-center gap-3 rounded-[1rem] border border-zinc-200 bg-zinc-50/75 p-3.5">
+                      <BrandLogoMark
+                        settings={{
+                          ...normalizedBrandSettingsDraft,
+                          logoMode: "default",
+                        }}
+                        className="h-12 w-14"
+                      />
+                      <div>
+                        <p className="text-sm font-semibold text-zinc-950">Original mark preview</p>
+                        <p className="mt-1 text-xs text-zinc-500">Current hex: {normalizedBrandSettingsDraft.logoColor}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -5084,49 +5143,33 @@ export default function AdminDashboard() {
                     </div>
 
                     <p className="mt-3 text-xs text-zinc-500">
-                      Theme mode keeps the palette perfectly matched. Switch to custom if you want slightly darker or more stylized body copy across the site.
+                      This setting is for body copy and supporting text. The navbar and footer stay in their own styling panels above.
                     </p>
 
                     <div className={`mt-4 space-y-4 ${normalizedBrandSettingsDraft.textColorMode === "theme" ? "opacity-55" : ""}`}>
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Global Text Color</p>
-                        </div>
-                        <label className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-2 text-[11px] tracking-[0.14em] text-zinc-600 uppercase">
-                          Custom
-                          <input
-                            type="color"
-                            value={normalizedBrandSettingsDraft.globalTextColor}
-                            onChange={(event) =>
-                              applyBrandingDraftChange((current) => ({
-                                ...current,
-                                textColorMode: "custom",
-                                globalTextColor: sanitizeBrandColor(event.target.value),
-                              }))
-                            }
-                            className="h-8 w-8 cursor-pointer rounded-full border-0 bg-transparent p-0"
-                            disabled={normalizedBrandSettingsDraft.textColorMode === "theme"}
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Global Text Color</p>
+                        <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-[11px] font-medium text-zinc-700 shadow-[0_6px_16px_rgba(0,0,0,0.04)]">
+                          <span
+                            className="h-3.5 w-3.5 rounded-full border border-black/10"
+                            style={{ backgroundColor: normalizedBrandSettingsDraft.globalTextColor }}
+                            aria-hidden="true"
                           />
-                        </label>
+                          {globalTextColorName}
+                        </span>
                       </div>
 
-                      <div className="flex flex-wrap gap-2">
-                        {GLOBAL_TEXT_COLOR_OPTIONS.map((option) => (
-                          <ColorSwatchButton
-                            key={`global-text-${option.value}`}
-                            label={option.label}
-                            value={option.value}
-                            selected={normalizedBrandSettingsDraft.globalTextColor === option.value}
-                            onClick={() =>
-                              applyBrandingDraftChange((current) => ({
-                                ...current,
-                                textColorMode: "custom",
-                                globalTextColor: option.value,
-                              }))
-                            }
-                            disabled={normalizedBrandSettingsDraft.textColorMode === "theme"}
-                          />
-                        ))}
+                      <div className="rounded-[1rem] border border-zinc-200 bg-zinc-50/70 p-3">
+                        <p className="text-[11px] tracking-[0.14em] text-zinc-500 uppercase">Choose color</p>
+                        <BrandColorSwatchPalette
+                          options={GLOBAL_TEXT_COLOR_OPTIONS}
+                          value={normalizedBrandSettingsDraft.globalTextColor}
+                          onSelect={applyGlobalTextColor}
+                          onCustomChange={(event) => applyGlobalTextColor(sanitizeBrandColor(event.target.value))}
+                          customLabel="Custom global text color"
+                          disabled={normalizedBrandSettingsDraft.textColorMode === "theme"}
+                          className="mt-3"
+                        />
                       </div>
                     </div>
 
@@ -5142,7 +5185,7 @@ export default function AdminDashboard() {
                       }}
                     >
                       <p className="text-[10px] tracking-[0.14em] uppercase" style={{ color: "var(--muted)" }}>
-                        Preview
+                        Live Text Preview
                       </p>
                       <h6 className="mt-2 text-[1.1em] font-semibold leading-tight" style={{ color: "var(--ink)" }}>
                         Stronger reading without breaking the mood

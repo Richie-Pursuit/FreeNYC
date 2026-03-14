@@ -23,11 +23,9 @@ export default function SiteFooter({ initialSettings = null }) {
     };
 
     window.addEventListener("site-settings-updated", handleSiteSettingsUpdated);
-    window.addEventListener("site-brand-updated", handleSiteSettingsUpdated);
 
     return () => {
       window.removeEventListener("site-settings-updated", handleSiteSettingsUpdated);
-      window.removeEventListener("site-brand-updated", handleSiteSettingsUpdated);
     };
   }, []);
 
